@@ -11,7 +11,7 @@ COPY ./scripts/backup.sh /usr/local/bin/backup.sh
 COPY ./scripts/restore.sh /usr/local/bin/restore.sh
 COPY ./db/init.sql /docker-entrypoint-initdb.d/
 
-# 
+# backup
 RUN chmod +x /usr/local/bin/backup.sh \
     && chmod +x /usr/local/bin/restore.sh
 
