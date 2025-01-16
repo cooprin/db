@@ -6,5 +6,5 @@ fi
 
 BACKUP_FILE=$1
 
-# Відновлення з бекапу
+# 
 gunzip -c ${BACKUP_FILE} | psql -U postgres -d crm_db
