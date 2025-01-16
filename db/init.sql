@@ -1,3 +1,18 @@
+-- Перевірка і створення бази даних (це потрібно виконувати підключившись до бази postgres)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'crm_db') THEN
+        CREATE DATABASE crm_db;
+        RAISE NOTICE 'Database crm_db created';
+    ELSE
+        RAISE NOTICE 'Database crm_db already exists';
+    END IF;
+END
+$$;
+
+-- Далі потрібно підключитися до створеної бази даних і виконувати весь інший код
+\c crm_db
+
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
