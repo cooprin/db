@@ -133,3 +133,36 @@ BEGIN
     EXECUTE 'GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO postgres';
     RAISE NOTICE 'Granted permissions to postgres user';
 END $$;
+
+-- Create default admin user if not exists
+DO $$
+DECLARE
+    admin_role_id UUID;
+BEGIN
+    -- Отримуємо ID ролі admin
+    SELECT id INTO admin_role_id FROM roles WHERE name = 'admin' LIMIT 1;
+    
+    -- Перевіряємо чи існує користувач admin
+    IF NOT EXISTS (SELECT 1 FROM users WHERE email = 'cooprin@gmail.com') THEN
+        -- Створюємо адміністратора
+        INSERT INTO users (
+            role_id,
+            email,
+            password,
+            first_name,
+            last_name,
+            is_active
+        ) VALUES (
+            admin_role_id,
+            'cooprin@gmail.com',
+            '$2b$10$3BXtmZyRoVIZepCFMN2h9.eKyXVJ/9ii1gPUPGFVDnk.9fFdSIrFu', -- хешований пароль '112233'
+            'Admin',
+            'User',
+            true
+        );
+        RAISE NOTICE 'Default admin user created';
+    ELSE
+        RAISE NOTICE 'Admin user already exists';
+    END IF;
+END
+$$;
