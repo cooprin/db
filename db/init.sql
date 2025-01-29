@@ -31,11 +31,9 @@ BEGIN
         
         -- Insert default roles only if table was just created
         INSERT INTO roles (name, description) VALUES
-            ('admin', 'System administrator'),
-            ('manager', 'Manager role'),
-            ('user', 'Regular user');
+            ('admin', 'System administrator');
 
-        RAISE NOTICE 'Table roles created with default values';
+        RAISE NOTICE 'Table roles created';
     ELSE
         RAISE NOTICE 'Table roles already exists';
     END IF;
@@ -186,8 +184,8 @@ BEGIN
             admin_role_id,
             'cooprin@gmail.com',
             '$2b$10$/8mFF08rYqKd20byMvGwquNb4JrxJ9eDjf8T8WAj1QQifWU6L0q0a', -- хешований пароль '112233'
-            'Admin',
-            'User',
+            'Roman',
+            'Tsyupryk',
             true
         );
         RAISE NOTICE 'Default admin user created';
