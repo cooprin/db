@@ -27,6 +27,4 @@ RUN echo "0 0 * * * /usr/local/bin/backup.sh > /var/log/cron.log 2>&1" > /etc/cr
     && chmod 0644 /etc/cron.d/backup-cron \
     && crontab /etc/cron.d/backup-cron
 
-VOLUME ["/var/lib/postgresql/data", "/backup"]
-
 CMD ["postgres"]
