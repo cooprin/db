@@ -1,17 +1,12 @@
--- Перевірка і створення бази даних (це потрібно виконувати підключившись до бази postgres)
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT FROM pg_database WHERE datname = current_database()) THEN
-        CREATE DATABASE crm_db;
-        RAISE NOTICE 'Database crm_db created';
-    ELSE
-        RAISE NOTICE 'Database crm_db already exists';
-    END IF;
-END
-$$;
-
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- Grant necessary permissions
+DO $$
+BEGIN
+    EXECUTE format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', current_database(), current_user);
+    RAISE NOTICE 'Granted database permissions to user: %', current_user;
+END $$;
 
 -- Function to check if table exists
 CREATE OR REPLACE FUNCTION create_table_if_not_exists() RETURNS void AS $$
@@ -81,11 +76,6 @@ BEGIN
     ELSE
         RAISE NOTICE 'Table audit_logs already exists';
     END IF;
-
-
-
-
-
 END;
 $$ LANGUAGE plpgsql;
 
@@ -113,7 +103,7 @@ BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
-$$ 
+$$ LANGUAGE plpgsql;
 
 -- Create triggers if they don't exist
 DO $$
@@ -151,12 +141,13 @@ SELECT
 FROM users u
 JOIN roles r ON u.role_id = r.id;
 
--- Grant necessary permissions
+-- Grant necessary permissions on created objects
 DO $$
 BEGIN
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO %I', current_user);
-    RAISE NOTICE 'Granted permissions to user: %', current_user;
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO %I', current_user);
+    RAISE NOTICE 'Granted schema permissions to user: %', current_user;
 END $$;
 
 -- Create default admin user if not exists
@@ -190,4 +181,4 @@ BEGIN
         RAISE NOTICE 'Admin user already exists';
     END IF;
 END
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql;
