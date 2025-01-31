@@ -23,8 +23,12 @@ RUN chmod 0644 /docker-entrypoint-initdb.d/init.sql \
     && chmod +x /usr/local/bin/restore.sh
 
 # Створення crontab для автоматичного бекапу
-RUN echo "0 0 * * * /usr/local/bin/backup.sh > /var/log/cron.log 2>&1" > /etc/cron.d/backup-cron \
+RUN echo "0 0 * * * /usr/local/bin/backup.sh >> /var/log/cron.log 2>&1" > /etc/cron.d/backup-cron \
     && chmod 0644 /etc/cron.d/backup-cron \
     && crontab /etc/cron.d/backup-cron
 
-CMD ["postgres"]
+# Копіювання скрипта запуску
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+CMD ["/start.sh"]

@@ -5,6 +5,9 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+# Завантаження змінних середовища
+source /etc/environment
+
 BACKUP_FILE="$1"
 
 if [ ! -f "$BACKUP_FILE" ]; then
@@ -12,7 +15,7 @@ if [ ! -f "$BACKUP_FILE" ]; then
     exit 1
 fi
 
-# Відновлення бази даних
-psql -U $POSTGRES_USER -d $POSTGRES_DB < $BACKUP_FILE
+# Відновлення бази даних з використанням змінних середовища
+PGPASSWORD=$POSTGRES_PASSWORD psql -U $POSTGRES_USER -d $POSTGRES_DB < $BACKUP_FILE
 
 echo "Restore completed from: $BACKUP_FILE"
