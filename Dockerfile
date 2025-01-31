@@ -8,8 +8,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Створення директорій
-RUN mkdir -p /var/log /backup \
-    && touch /var/log/cron.log
+RUN mkdir -p /var/log /backup /var/lib/postgresql/data/pgdata \
+    && touch /var/log/cron.log \
+    && chown -R postgres:postgres /var/lib/postgresql/data/pgdata \
+    && chmod 700 /var/lib/postgresql/data/pgdata
 
 # Копіювання SQL скрипта ініціалізації
 COPY ./db/init.sql /docker-entrypoint-initdb.d/
