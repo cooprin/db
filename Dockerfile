@@ -4,6 +4,7 @@ FROM postgres:15
 RUN apt-get update && apt-get install -y \
     cron \
     postgresql-client \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Створення директорій

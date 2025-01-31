@@ -1,3 +1,4 @@
 #!/bin/bash
 service cron start
-exec postgres
+# Використовуємо змінну POSTGRES_USER з docker-compose
+exec gosu $POSTGRES_USER postgres
