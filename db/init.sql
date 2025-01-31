@@ -116,7 +116,7 @@ BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ 
 
 -- Create triggers if they don't exist
 DO $$
@@ -193,4 +193,4 @@ BEGIN
         RAISE NOTICE 'Admin user already exists';
     END IF;
 END
-$$;
+$$ language 'plpgsql';
