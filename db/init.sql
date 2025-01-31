@@ -1,40 +1,124 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Grant necessary permissions
-DO $$
-BEGIN
-    EXECUTE format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', current_database(), current_user);
-    RAISE NOTICE 'Granted database permissions to user: %', current_user;
-END $$;
-
--- Function to check if table exists
+-- Функція для створення таблиць
 CREATE OR REPLACE FUNCTION create_table_if_not_exists() RETURNS void AS $$
 BEGIN
-    -- Roles table
-    IF NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'roles') THEN
-        CREATE TABLE roles (
+    -- Таблиця ресурсів системи (для зберігання списку всіх таблиць/модулів до яких надаються права)
+    IF NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'resources') THEN
+        CREATE TABLE resources (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            name VARCHAR(50) NOT NULL UNIQUE,
+            name VARCHAR(255) NOT NULL,
+            code VARCHAR(100) NOT NULL UNIQUE,
+            type VARCHAR(50) NOT NULL, -- 'table', 'module', 'function'
+            metadata JSONB DEFAULT '{}',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        RAISE NOTICE 'Table resources created';
+    END IF;
+
+    -- Таблиця можливих дій (create, read, update, delete, etc.)
+    IF NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'actions') THEN
+        CREATE TABLE actions (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            name VARCHAR(255) NOT NULL,
+            code VARCHAR(100) NOT NULL UNIQUE,
+            description TEXT,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Вставка базових дій
+        INSERT INTO actions (name, code, description) VALUES 
+            ('Create', 'create', 'Permission to create new records'),
+            ('Read', 'read', 'Permission to read records'),
+            ('Update', 'update', 'Permission to update records'),
+            ('Delete', 'delete', 'Permission to delete records');
+            
+        RAISE NOTICE 'Table actions created with default values';
+    END IF;
+
+    -- Зв'язок ресурсів з можливими діями
+    IF NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'resource_actions') THEN
+        CREATE TABLE resource_actions (
+            resource_id UUID REFERENCES resources(id),
+            action_id UUID REFERENCES actions(id),
+            is_default BOOLEAN DEFAULT false,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (resource_id, action_id)
+        );
+        RAISE NOTICE 'Table resource_actions created';
+    END IF;
+
+    -- Групи прав (для логічного групування прав)
+    IF NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'permission_groups') THEN
+        CREATE TABLE permission_groups (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            name VARCHAR(255) NOT NULL,
             description TEXT,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
         
-        -- Insert default roles only if table was just created
-        INSERT INTO roles (name, description) VALUES
-            ('admin', 'System administrator');
-
-        RAISE NOTICE 'Table roles created';
-    ELSE
-        RAISE NOTICE 'Table roles already exists';
+        -- Створення базових груп
+        INSERT INTO permission_groups (name, description) VALUES 
+            ('User Management', 'Permissions related to user management'),
+            ('Role Management', 'Permissions related to role management'),
+            ('System Management', 'System-level permissions');
+            
+        RAISE NOTICE 'Table permission_groups created with default groups';
     END IF;
 
-    -- Users table
+    -- Права доступу
+    IF NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'permissions') THEN
+        CREATE TABLE permissions (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            group_id UUID REFERENCES permission_groups(id),
+            resource_id UUID REFERENCES resources(id),
+            name VARCHAR(255) NOT NULL,
+            code VARCHAR(100) NOT NULL UNIQUE,
+            conditions JSONB DEFAULT '{}',
+            is_system BOOLEAN DEFAULT false,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        RAISE NOTICE 'Table permissions created';
+    END IF;
+
+    -- Таблиця ролей
+    IF NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'roles') THEN
+        CREATE TABLE roles (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            name VARCHAR(50) NOT NULL UNIQUE,
+            description TEXT,
+            is_system BOOLEAN DEFAULT false,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Створення ролі адміністратора
+        INSERT INTO roles (name, description, is_system) VALUES
+            ('admin', 'System administrator', true);
+            
+        RAISE NOTICE 'Table roles created with admin role';
+    END IF;
+
+    -- Зв'язок ролей з правами
+    IF NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'role_permissions') THEN
+        CREATE TABLE role_permissions (
+            role_id UUID REFERENCES roles(id),
+            permission_id UUID REFERENCES permissions(id),
+            granted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            granted_by UUID,
+            PRIMARY KEY (role_id, permission_id)
+        );
+        RAISE NOTICE 'Table role_permissions created';
+    END IF;
+
+    -- Таблиця користувачів
     IF NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'users') THEN
         CREATE TABLE users (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            role_id UUID REFERENCES roles(id),
             email VARCHAR(255) NOT NULL UNIQUE,
             password VARCHAR(255) NOT NULL,
             first_name VARCHAR(100),
@@ -46,10 +130,19 @@ BEGIN
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
-        
         RAISE NOTICE 'Table users created';
-    ELSE
-        RAISE NOTICE 'Table users already exists';
+    END IF;
+
+    -- Зв'язок користувачів з ролями
+    IF NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'user_roles') THEN
+        CREATE TABLE user_roles (
+            user_id UUID REFERENCES users(id),
+            role_id UUID REFERENCES roles(id),
+            granted_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            granted_by UUID REFERENCES users(id),
+            PRIMARY KEY (user_id, role_id)
+        );
+        RAISE NOTICE 'Table user_roles created';
     END IF;
 
     -- Таблиця аудиту
@@ -73,30 +166,33 @@ BEGIN
         CREATE INDEX idx_audit_created ON audit_logs(created_at);
 
         RAISE NOTICE 'Table audit_logs created with indexes';
-    ELSE
-        RAISE NOTICE 'Table audit_logs already exists';
     END IF;
 END;
 $$ LANGUAGE plpgsql;
 
--- Execute the function to create tables
+-- Виконання функції створення таблиць
 SELECT create_table_if_not_exists();
 
--- Create indexes if they don't exist
+-- Створення індексів
 DO $$ 
 BEGIN
+    -- Індекси для користувачів
     IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_users_email') THEN
         CREATE INDEX idx_users_email ON users(email);
-        RAISE NOTICE 'Created index on users(email)';
     END IF;
     
-    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_users_role') THEN
-        CREATE INDEX idx_users_role ON users(role_id);
-        RAISE NOTICE 'Created index on users(role_id)';
+    -- Індекси для прав
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_permissions_code') THEN
+        CREATE INDEX idx_permissions_code ON permissions(code);
+    END IF;
+    
+    -- Індекси для ресурсів
+    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_resources_code') THEN
+        CREATE INDEX idx_resources_code ON resources(code);
     END IF;
 END $$;
 
--- Create timestamp update function
+-- Функція оновлення часової мітки
 CREATE OR REPLACE FUNCTION update_timestamp()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -105,15 +201,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Create triggers if they don't exist
+-- Створення тригерів
 DO $$
 BEGIN
+    -- Тригери для оновлення часових міток
     IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_users_timestamp') THEN
         CREATE TRIGGER update_users_timestamp
             BEFORE UPDATE ON users
             FOR EACH ROW
             EXECUTE FUNCTION update_timestamp();
-        RAISE NOTICE 'Created update_timestamp trigger for users';
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_roles_timestamp') THEN
@@ -121,11 +217,10 @@ BEGIN
             BEFORE UPDATE ON roles
             FOR EACH ROW
             EXECUTE FUNCTION update_timestamp();
-        RAISE NOTICE 'Created update_timestamp trigger for roles';
     END IF;
 END $$;
 
--- Create helpful views
+-- Створення корисних представлень
 CREATE OR REPLACE VIEW view_users_with_roles AS
 SELECT 
     u.id,
@@ -136,49 +231,53 @@ SELECT
     u.avatar_url,
     u.is_active,
     u.last_login,
-    r.name as role_name,
-    r.description as role_description
+    array_agg(r.name) as role_names
 FROM users u
-JOIN roles r ON u.role_id = r.id;
+JOIN user_roles ur ON u.id = ur.user_id
+JOIN roles r ON ur.role_id = r.id
+GROUP BY u.id, u.email, u.first_name, u.last_name, u.phone, u.avatar_url, u.is_active, u.last_login;
 
--- Grant necessary permissions on created objects
-DO $$
-BEGIN
-    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO %I', current_user);
-    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO %I', current_user);
-    EXECUTE format('GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO %I', current_user);
-    RAISE NOTICE 'Granted schema permissions to user: %', current_user;
-END $$;
-
--- Create default admin user if not exists
+-- Створення адміністратора системи
 DO $$
 DECLARE
     admin_role_id UUID;
+    admin_user_id UUID;
 BEGIN
     -- Отримуємо ID ролі admin
     SELECT id INTO admin_role_id FROM roles WHERE name = 'admin' LIMIT 1;
     
-    -- Перевіряємо чи існує користувач admin
+    -- Створюємо адміністратора якщо не існує
     IF NOT EXISTS (SELECT 1 FROM users WHERE email = 'cooprin@gmail.com') THEN
-        -- Створюємо адміністратора
         INSERT INTO users (
-            role_id,
             email,
             password,
             first_name,
             last_name,
             is_active
         ) VALUES (
-            admin_role_id,
             'cooprin@gmail.com',
-            '$2b$10$/8mFF08rYqKd20byMvGwquNb4JrxJ9eDjf8T8WAj1QQifWU6L0q0a', -- хешований пароль '112233'
+            '$2b$10$/8mFF08rYqKd20byMvGwquNb4JrxJ9eDjf8T8WAj1QQifWU6L0q0a',
             'Roman',
             'Tsyupryk',
             true
-        );
+        ) RETURNING id INTO admin_user_id;
+        
+        -- Призначаємо роль адміністратора
+        INSERT INTO user_roles (user_id, role_id) 
+        VALUES (admin_user_id, admin_role_id);
+        
         RAISE NOTICE 'Default admin user created';
-    ELSE
-        RAISE NOTICE 'Admin user already exists';
     END IF;
 END
 $$ LANGUAGE plpgsql;
+
+-- Надання необхідних прав
+DO $$
+BEGIN
+    -- Надаємо права на всі таблиці
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO %I', current_user);
+    -- Надаємо права на всі послідовності
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO %I', current_user);
+    -- Надаємо права на всі функції
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO %I', current_user);
+END $$;
