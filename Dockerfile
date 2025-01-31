@@ -4,14 +4,11 @@ FROM postgres:15
 RUN apt-get update && apt-get install -y \
     cron \
     postgresql-client \
-    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Створення директорій
-RUN mkdir -p /var/log /backup /var/lib/postgresql/data/pgdata \
-    && touch /var/log/cron.log \
-    && chown -R postgres:postgres /var/lib/postgresql/data/pgdata \
-    && chmod 700 /var/lib/postgresql/data/pgdata
+RUN mkdir -p /var/log /backup \
+    && touch /var/log/cron.log
 
 # Копіювання SQL скрипта ініціалізації
 COPY ./db/init.sql /docker-entrypoint-initdb.d/
@@ -29,9 +26,3 @@ RUN chmod 0644 /docker-entrypoint-initdb.d/init.sql \
 RUN echo "0 0 * * * /usr/local/bin/backup.sh >> /var/log/cron.log 2>&1" > /etc/cron.d/backup-cron \
     && chmod 0644 /etc/cron.d/backup-cron \
     && crontab /etc/cron.d/backup-cron
-
-# Копіювання скрипта запуску
-COPY start.sh /start.sh
-RUN chmod +x /start.sh
-
-CMD ["/start.sh"]
