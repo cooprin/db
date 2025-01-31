@@ -157,9 +157,9 @@ JOIN roles r ON u.role_id = r.id;
 -- Grant necessary permissions
 DO $$
 BEGIN
-    EXECUTE 'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres';
-    EXECUTE 'GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO postgres';
-    RAISE NOTICE 'Granted permissions to postgres user';
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO %I', current_user);
+    RAISE NOTICE 'Granted permissions to user: %', current_user;
 END $$;
 
 -- Create default admin user if not exists
