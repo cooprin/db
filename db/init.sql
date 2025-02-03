@@ -114,7 +114,7 @@ BEGIN
            WHERE (pg.name = 'User Management' AND r.code = 'users')
               OR (pg.name = 'Role Management' AND r.code = 'roles')
               OR (pg.name = 'System Management' AND r.code = 'audit')
-       OR (pg.name = 'Permission Management' AND r.code = 'permissions')
+              OR (pg.name = 'Permission Management' AND r.code = 'permissions')
        )
        INSERT INTO permissions (group_id, resource_id, name, code, is_system)
        SELECT 
