@@ -21,7 +21,8 @@ BEGIN
            ('Users', 'users', 'table'),
            ('Roles', 'roles', 'table'),
            ('Audit', 'audit', 'module'),
-           ('System', 'system', 'module');
+           ('System', 'system', 'module'),
+           ('Permissions', 'permissions', 'module');
            
        RAISE NOTICE 'Table resources created with default values';
    END IF;
@@ -80,7 +81,8 @@ BEGIN
        INSERT INTO permission_groups (name, description) VALUES 
            ('User Management', 'Permissions related to user management'),
            ('Role Management', 'Permissions related to role management'),
-           ('System Management', 'System-level permissions');
+           ('System Management', 'System-level permissions'),
+           ('Permission Management', 'Permissions related to permission management');
            
        RAISE NOTICE 'Table permission_groups created with default groups';
    END IF;
@@ -112,6 +114,7 @@ BEGIN
            WHERE (pg.name = 'User Management' AND r.code = 'users')
               OR (pg.name = 'Role Management' AND r.code = 'roles')
               OR (pg.name = 'System Management' AND r.code = 'audit')
+       OR (pg.name = 'Permission Management' AND r.code = 'permissions')
        )
        INSERT INTO permissions (group_id, resource_id, name, code, is_system)
        SELECT 
