@@ -4,7 +4,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- Функція для створення таблиць
 CREATE OR REPLACE FUNCTION create_table_if_not_exists() RETURNS void AS $$
 BEGIN
-   -- Таблиця ресурсів системи (для зберігання списку всіх таблиць/модулів до яких надаються права)
+   -- Таблиця ресурсів системи
    IF NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'resources') THEN
        CREATE TABLE resources (
            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -20,14 +20,14 @@ BEGIN
        INSERT INTO resources (name, code, type) VALUES
            ('Users', 'users', 'table'),
            ('Roles', 'roles', 'table'),
+           ('Permissions', 'permissions', 'module'),
            ('Audit', 'audit', 'module'),
-           ('System', 'system', 'module'),
-           ('Permissions', 'permissions', 'module');
+           ('System', 'system', 'module');
            
        RAISE NOTICE 'Table resources created with default values';
    END IF;
 
-   -- Таблиця можливих дій (create, read, update, delete, etc.)
+   -- Таблиця можливих дій
    IF NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'actions') THEN
        CREATE TABLE actions (
            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -42,7 +42,8 @@ BEGIN
            ('Create', 'create', 'Permission to create new records'),
            ('Read', 'read', 'Permission to read records'),
            ('Update', 'update', 'Permission to update records'),
-           ('Delete', 'delete', 'Permission to delete records');
+           ('Delete', 'delete', 'Permission to delete records'),
+           ('Manage', 'manage', 'Full management permission');
            
        RAISE NOTICE 'Table actions created with default values';
    END IF;
@@ -57,17 +58,16 @@ BEGIN
            PRIMARY KEY (resource_id, action_id)
        );
 
-       -- Додаємо зв'язки для базових ресурсів
+       -- Додаємо зв'язки для всіх ресурсів з усіма діями
        INSERT INTO resource_actions (resource_id, action_id, is_default)
        SELECT r.id, a.id, true
        FROM resources r
-       CROSS JOIN actions a
-       WHERE r.code IN ('users', 'roles', 'audit');
+       CROSS JOIN actions a;
        
        RAISE NOTICE 'Table resource_actions created with default values';
    END IF;
 
-   -- Групи прав (для логічного групування прав)
+   -- Групи прав
    IF NOT EXISTS (SELECT FROM pg_tables WHERE tablename = 'permission_groups') THEN
        CREATE TABLE permission_groups (
            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -81,8 +81,8 @@ BEGIN
        INSERT INTO permission_groups (name, description) VALUES 
            ('User Management', 'Permissions related to user management'),
            ('Role Management', 'Permissions related to role management'),
-           ('System Management', 'System-level permissions'),
-           ('Permission Management', 'Permissions related to permission management');
+           ('Permission Management', 'Permissions related to permission management'),
+           ('System Management', 'System-level permissions');
            
        RAISE NOTICE 'Table permission_groups created with default groups';
    END IF;
@@ -101,20 +101,22 @@ BEGIN
            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
        );
 
-       -- Додаємо базові права
+       -- Додаємо базові права для всіх ресурсів і дій
        WITH permission_data AS (
            SELECT 
                pg.id as group_id,
                r.id as resource_id,
+               r.name as resource_name,
                r.code as resource_code,
                a.code as action_code
            FROM permission_groups pg
            CROSS JOIN resources r
            CROSS JOIN actions a
-           WHERE (pg.name = 'User Management' AND r.code = 'users')
-              OR (pg.name = 'Role Management' AND r.code = 'roles')
-              OR (pg.name = 'System Management' AND r.code = 'audit')
-              OR (pg.name = 'Permission Management' AND r.code = 'permissions')
+           WHERE 
+               (pg.name = 'User Management' AND r.code = 'users') OR
+               (pg.name = 'Role Management' AND r.code = 'roles') OR
+               (pg.name = 'Permission Management' AND r.code = 'permissions') OR
+               (pg.name = 'System Management' AND r.code IN ('audit', 'system'))
        )
        INSERT INTO permissions (group_id, resource_id, name, code, is_system)
        SELECT 
@@ -210,7 +212,6 @@ BEGIN
            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
        );
 
-       -- Створення індексів для таблиці аудиту
        CREATE INDEX idx_audit_user ON audit_logs(user_id);
        CREATE INDEX idx_audit_action ON audit_logs(action_type);
        CREATE INDEX idx_audit_entity ON audit_logs(entity_type, entity_id);
@@ -227,17 +228,14 @@ SELECT create_table_if_not_exists();
 -- Створення індексів
 DO $$ 
 BEGIN
-   -- Індекси для користувачів
    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_users_email') THEN
        CREATE INDEX idx_users_email ON users(email);
    END IF;
    
-   -- Індекси для прав
    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_permissions_code') THEN
        CREATE INDEX idx_permissions_code ON permissions(code);
    END IF;
    
-   -- Індекси для ресурсів
    IF NOT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_resources_code') THEN
        CREATE INDEX idx_resources_code ON resources(code);
    END IF;
@@ -255,7 +253,6 @@ $$ LANGUAGE plpgsql;
 -- Створення тригерів
 DO $$
 BEGIN
-   -- Тригери для оновлення часових міток
    IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_users_timestamp') THEN
        CREATE TRIGGER update_users_timestamp
            BEFORE UPDATE ON users
@@ -328,10 +325,7 @@ $$ LANGUAGE plpgsql;
 -- Надання необхідних прав
 DO $$
 BEGIN
-   -- Надаємо права на всі таблиці
    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO %I', current_user);
-   -- Надаємо права на всі послідовності
    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO %I', current_user);
-   -- Надаємо права на всі функції
    EXECUTE format('GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO %I', current_user);
 END $$;
