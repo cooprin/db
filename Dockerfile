@@ -14,12 +14,12 @@ RUN mkdir -p /var/log /backup \
 RUN mkdir -p /tmp/sql-init
 
 # Копіювання SQL скриптів ініціалізації
-COPY ./db/init/ /tmp/sql-init/
+COPY ./db /tmp/sql-init/
 
 # Сортування та перейменування файлів для правильного порядку виконання
 RUN cd /tmp/sql-init && \
     # Копіюємо файли верхнього рівня (00-*.sql, 01-*.sql, etc)
-    for f in [0-9][0-9]-*.sql; do \
+    for f in *.sql; do \
         if [ -f "$f" ]; then \
             cp "$f" "/docker-entrypoint-initdb.d/$(printf %03d ${f%%-*})_${f#*-}"; \
         fi; \
@@ -54,4 +54,3 @@ RUN chmod -R 0644 /docker-entrypoint-initdb.d/ \
 RUN echo "0 0 * * * /usr/local/bin/backup.sh >> /var/log/cron.log 2>&1" > /etc/cron.d/backup-cron \
     && chmod 0644 /etc/cron.d/backup-cron \
     && crontab /etc/cron.d/backup-cron
-    
