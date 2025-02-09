@@ -1,3 +1,22 @@
+-- Grant privileges to crmadmin
+DO $$
+BEGIN
+    -- Grant schema permissions
+    EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA auth TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA core TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA audit TO %I', current_user);
+
+    -- Grant table permissions
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA auth TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA core TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA audit TO %I', current_user);
+
+    -- Grant sequence permissions
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA auth TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA core TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA audit TO %I', current_user);
+END $$;
+
 -- Insert initial data
 DO $$
 BEGIN
