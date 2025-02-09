@@ -1,55 +1,31 @@
-CREATE OR REPLACE FUNCTION audit.log_table_change()
-RETURNS TRIGGER AS $$
-DECLARE
-    action_type_val varchar(50);
-    entity_type_val varchar(50);
-    old_values_val jsonb;
-    new_values_val jsonb;
-BEGIN
-    -- Визначаємо тип дії
-    CASE TG_OP
-        WHEN 'INSERT' THEN
-            action_type_val := 'create';
-            old_values_val := null;
-            new_values_val := to_jsonb(NEW);
-        WHEN 'UPDATE' THEN
-            action_type_val := 'update';
-            old_values_val := to_jsonb(OLD);
-            new_values_val := to_jsonb(NEW);
-        WHEN 'DELETE' THEN
-            action_type_val := 'delete';
-            old_values_val := to_jsonb(OLD);
-            new_values_val := null;
-    END CASE;
+-- ================================================
+-- Schema: audit
+-- Table: audit_logs
+-- ================================================
 
-    -- Формуємо тип сутності зі схеми та назви таблиці
-    entity_type_val := TG_TABLE_NAME;
+CREATE SCHEMA IF NOT EXISTS audit;
 
-    -- Записуємо зміни в лог
-    INSERT INTO audit.audit_logs (
-        action_type,
-        entity_type,
-        entity_id,
-        old_values,
-        new_values,
-        created_at
-    ) VALUES (
-        action_type_val,
-        entity_type_val,
-        CASE 
-            WHEN TG_OP = 'DELETE' THEN (OLD).id
-            ELSE (NEW).id
-        END,
-        old_values_val,
-        new_values_val,
-        CURRENT_TIMESTAMP
-    );
+CREATE TABLE IF NOT EXISTS audit.audit_logs (
+    id SERIAL PRIMARY KEY,
+    user_id UUID NOT NULL,
+    action_type TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id UUID NOT NULL,
+    old_values JSONB,
+    new_values JSONB,
+    ip_address INET,
+    created_at TIMESTAMP DEFAULT now()
+);
 
-    -- Повертаємо NEW для INSERT/UPDATE або OLD для DELETE
-    IF TG_OP = 'DELETE' THEN
-        RETURN OLD;
-    ELSE
-        RETURN NEW;
-    END IF;
-END;
-$$ LANGUAGE plpgsql;
+COMMENT ON TABLE audit.audit_logs IS 'Лог змін у системі';
+
+COMMENT ON COLUMN audit.audit_logs.id IS 'Унікальний ідентифікатор запису аудиту';
+COMMENT ON COLUMN audit.audit_logs.user_id IS 'Ідентифікатор користувача, який виконав дію';
+COMMENT ON COLUMN audit.audit_logs.action_type IS 'Тип дії (INSERT, UPDATE, DELETE)';
+COMMENT ON COLUMN audit.audit_logs.entity_type IS 'Тип сутності (наприклад, users, orders)';
+COMMENT ON COLUMN audit.audit_logs.entity_id IS 'Ідентифікатор зміненої сутності';
+COMMENT ON COLUMN audit.audit_logs.old_values IS 'Старі значення (NULL, якщо INSERT)';
+COMMENT ON COLUMN audit.audit_logs.new_values IS 'Нові значення (NULL, якщо DELETE)';
+COMMENT ON COLUMN audit.audit_logs.ip_address IS 'IP-адреса користувача';
+COMMENT ON COLUMN audit.audit_logs.created_at IS 'Час створення запису';
+
