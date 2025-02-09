@@ -15,7 +15,6 @@ BEGIN
             PRIMARY KEY (user_id, role_id)
         );
 
-        -- Додаємо індекс для швидкого пошуку ролей користувача
         IF NOT EXISTS (
             SELECT 1 FROM pg_indexes 
             WHERE schemaname = 'auth' 
@@ -25,7 +24,6 @@ BEGIN
             CREATE INDEX user_roles_user_id_idx ON auth.user_roles(user_id);
         END IF;
 
-        -- Додаємо індекс для швидкого пошуку користувачів з певною роллю
         IF NOT EXISTS (
             SELECT 1 FROM pg_indexes 
             WHERE schemaname = 'auth' 

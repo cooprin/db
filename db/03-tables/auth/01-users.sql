@@ -1,7 +1,6 @@
 -- Create users table if not exists
 DO $$
 BEGIN
-    -- Перевіряємо чи існує таблиця users в схемі auth
     IF NOT EXISTS (
         SELECT FROM pg_tables 
         WHERE schemaname = 'auth' 
@@ -21,7 +20,6 @@ BEGIN
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
 
-        -- Додаємо унікальний індекс для email
         IF NOT EXISTS (
             SELECT 1 FROM pg_indexes 
             WHERE schemaname = 'auth' 
@@ -31,7 +29,6 @@ BEGIN
             CREATE UNIQUE INDEX users_email_unique ON auth.users(email);
         END IF;
 
-        -- Додаємо коментар до таблиці
         COMMENT ON TABLE auth.users IS 'Users table for storing user accounts and profile information';
         COMMENT ON COLUMN auth.users.email IS 'User email address, must be unique';
         COMMENT ON COLUMN auth.users.password IS 'Hashed user password';

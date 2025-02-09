@@ -19,7 +19,6 @@ BEGIN
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
 
-        -- Додаємо індекси для швидкого пошуку та фільтрації
         IF NOT EXISTS (
             SELECT 1 FROM pg_indexes 
             WHERE schemaname = 'audit' 
@@ -56,7 +55,6 @@ BEGIN
             CREATE INDEX audit_logs_created_at_idx ON audit.audit_logs(created_at);
         END IF;
 
-        -- Додаємо обмеження для типів дій
         IF NOT EXISTS (
             SELECT 1 
             FROM information_schema.constraint_column_usage 

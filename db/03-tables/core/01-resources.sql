@@ -17,7 +17,6 @@ BEGIN
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
 
-        -- Додаємо унікальний індекс для code
         IF NOT EXISTS (
             SELECT 1 FROM pg_indexes 
             WHERE schemaname = 'core' 
@@ -27,7 +26,6 @@ BEGIN
             CREATE UNIQUE INDEX resources_code_unique ON core.resources(code);
         END IF;
 
-        -- Додаємо обмеження для типу ресурсу
         IF NOT EXISTS (
             SELECT 1 
             FROM information_schema.constraint_column_usage 
@@ -40,7 +38,6 @@ BEGIN
             );
         END IF;
 
-        -- Додаємо індекс для типу, часто використовується у фільтрах
         IF NOT EXISTS (
             SELECT 1 FROM pg_indexes 
             WHERE schemaname = 'core' 

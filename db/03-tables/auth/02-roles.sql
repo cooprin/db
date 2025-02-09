@@ -16,7 +16,6 @@ BEGIN
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
 
-        -- Додаємо унікальний індекс для name
         IF NOT EXISTS (
             SELECT 1 FROM pg_indexes 
             WHERE schemaname = 'auth' 
@@ -26,7 +25,6 @@ BEGIN
             CREATE UNIQUE INDEX roles_name_unique ON auth.roles(name);
         END IF;
 
-        -- Додаємо коментарі
         COMMENT ON TABLE auth.roles IS 'Roles table for storing user roles';
         COMMENT ON COLUMN auth.roles.name IS 'Unique role name';
         COMMENT ON COLUMN auth.roles.is_system IS 'Flag indicating if this is a system role that cannot be modified';

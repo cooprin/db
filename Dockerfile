@@ -19,9 +19,10 @@ COPY ./db /tmp/sql-init/
 # Сортування та перейменування файлів для правильного порядку виконання
 RUN cd /tmp/sql-init && \
     # Копіюємо файли верхнього рівня (00-*.sql, 01-*.sql, etc)
-    for f in *.sql; do \
+    for f in [0-9][0-9]-*.sql; do \
         if [ -f "$f" ]; then \
-            cp "$f" "/docker-entrypoint-initdb.d/$(printf %03d ${f%%-*})_${f#*-}"; \
+            prefix=$(printf %d00 ${f%%-*}); \
+            cp "$f" "/docker-entrypoint-initdb.d/$(printf %03d $prefix)_${f#*-}"; \
         fi; \
     done && \
     # Копіюємо файли з підкаталогу tables, зберігаючи схему та порядок

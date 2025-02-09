@@ -15,7 +15,6 @@ BEGIN
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
 
-        -- Додаємо унікальний індекс для code
         IF NOT EXISTS (
             SELECT 1 FROM pg_indexes 
             WHERE schemaname = 'core' 
@@ -43,7 +42,6 @@ BEGIN
             PRIMARY KEY (resource_id, action_id)
         );
 
-        -- Додаємо індекси для швидкого пошуку
         IF NOT EXISTS (
             SELECT 1 FROM pg_indexes 
             WHERE schemaname = 'core' 
