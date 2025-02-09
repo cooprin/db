@@ -1,4 +1,3 @@
--- Create triggers for timestamp updates
 DO $$
 BEGIN
     -- Auth schema triggers
@@ -58,65 +57,8 @@ BEGIN
             EXECUTE FUNCTION core.update_timestamp();
     END IF;
 
-    -- Audit logging trigger functions
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_proc 
-        WHERE proname = 'log_table_change'
-    ) THEN
-        CREATE OR REPLACE FUNCTION audit.log_table_change()
-        RETURNS TRIGGER AS $$
-        DECLARE
-            change_type varchar(50);
-            old_data jsonb;
-            new_data jsonb;
-        BEGIN
-            IF (TG_OP = 'DELETE') THEN
-                change_type := 'delete';
-                old_data := to_jsonb(OLD);
-                new_data := null;
-            ELSIF (TG_OP = 'UPDATE') THEN
-                change_type := 'update';
-                old_data := to_jsonb(OLD);
-                new_data := to_jsonb(NEW);
-            ELSIF (TG_OP = 'INSERT') THEN
-                change_type := 'create';
-                old_data := null;
-                new_data := to_jsonb(NEW);
-            END IF;
-
-            INSERT INTO audit.audit_logs(
-                user_id,
-                action_type,
-                entity_type,
-                entity_id,
-                old_values,
-                new_values,
-                created_at
-            )
-            VALUES (
-                current_setting('app.current_user_id', true)::uuid,
-                change_type,
-                TG_TABLE_SCHEMA || '.' || TG_TABLE_NAME,
-                CASE 
-                    WHEN TG_OP = 'DELETE' THEN OLD.id
-                    ELSE NEW.id
-                END,
-                old_data,
-                new_data,
-                CURRENT_TIMESTAMP
-            );
-
-            IF (TG_OP = 'DELETE') THEN
-                RETURN OLD;
-            END IF;
-            
-            RETURN NEW;
-        END;
-        $$ LANGUAGE plpgsql;
-    END IF;
-
-    -- Add audit triggers to tables
-    -- Users audit
+    -- Audit logging triggers
+    -- Users table audit
     IF NOT EXISTS (
         SELECT 1 FROM pg_trigger 
         WHERE tgname = 'audit_users_changes'
@@ -127,7 +69,7 @@ BEGIN
             EXECUTE FUNCTION audit.log_table_change();
     END IF;
 
-    -- Roles audit
+    -- Roles table audit
     IF NOT EXISTS (
         SELECT 1 FROM pg_trigger 
         WHERE tgname = 'audit_roles_changes'
@@ -138,7 +80,18 @@ BEGIN
             EXECUTE FUNCTION audit.log_table_change();
     END IF;
 
-    -- Resources audit
+    -- Permissions table audit
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'audit_permissions_changes'
+    ) THEN
+        CREATE TRIGGER audit_permissions_changes
+            AFTER INSERT OR UPDATE OR DELETE ON auth.permissions
+            FOR EACH ROW
+            EXECUTE FUNCTION audit.log_table_change();
+    END IF;
+
+    -- Resources table audit
     IF NOT EXISTS (
         SELECT 1 FROM pg_trigger 
         WHERE tgname = 'audit_resources_changes'
@@ -148,4 +101,5 @@ BEGIN
             FOR EACH ROW
             EXECUTE FUNCTION audit.log_table_change();
     END IF;
-END $$;
+END;
+$$;
