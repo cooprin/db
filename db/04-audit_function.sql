@@ -1,5 +1,5 @@
-DO $$
-BEGIN
+DO $$ 
+BEGIN 
     IF EXISTS (
         SELECT 1 FROM pg_proc p
         JOIN pg_namespace n ON p.pronamespace = n.oid
@@ -11,15 +11,17 @@ BEGIN
 END $$;
 
 CREATE FUNCTION audit.log_table_change()
-RETURNS TRIGGER AS $$
-BEGIN
+RETURNS TRIGGER AS $$ 
+BEGIN 
     INSERT INTO audit.audit_logs(
+        user_id,  -- Додаємо user_id
         action_type,
         entity_type,
         entity_id,
         old_values,
         new_values
     ) VALUES (
+        current_setting('audit.user_id', true)::uuid,  -- Отримуємо user_id з session setting
         TG_OP,  
         TG_TABLE_NAME,
         CASE 
@@ -38,10 +40,10 @@ BEGIN
         END
     );
 
-    IF TG_OP = 'DELETE' THEN
-        RETURN OLD;
-    ELSE
-        RETURN NEW;
-    END IF;
+    IF TG_OP = 'DELETE' THEN 
+        RETURN OLD; 
+    ELSE 
+        RETURN NEW; 
+    END IF; 
 END;
 $$ LANGUAGE plpgsql;
