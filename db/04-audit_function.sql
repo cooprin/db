@@ -5,7 +5,7 @@ DECLARE
     old_data jsonb;
     new_data jsonb;
 BEGIN
-    -- Визначаємо тип зміни
+    -- Р’РёР·РЅР°С‡Р°С”РјРѕ С‚РёРї Р·РјС–РЅРё
     CASE TG_OP
         WHEN 'INSERT' THEN
             change_type := 'INSERT';
@@ -21,7 +21,7 @@ BEGIN
             new_data := null;
     END CASE;
 
-    -- Записуємо зміни в лог
+    -- Р—Р°РїРёСЃСѓС”РјРѕ Р·РјС–РЅРё РІ Р»РѕРі
     INSERT INTO audit.audit_logs (
         schema_name,
         table_name,
@@ -38,7 +38,7 @@ BEGIN
         current_user
     );
 
-    -- Повертаємо NEW для INSERT/UPDATE або OLD для DELETE
+    -- РџРѕРІРµСЂС‚Р°С”РјРѕ NEW РґР»СЏ INSERT/UPDATE Р°Р±Рѕ OLD РґР»СЏ DELETE
     IF TG_OP = 'DELETE' THEN
         RETURN OLD;
     ELSE
