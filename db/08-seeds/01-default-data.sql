@@ -20,6 +20,9 @@ BEGIN
     EXECUTE format('GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA core TO %I', current_user);
 END $$;
 
+-- Disable triggers temporarily for initial data load
+SET session_replication_role = 'replica';
+
 -- Insert initial data
 DO $$
 BEGIN
@@ -134,3 +137,6 @@ BEGIN
         WHERE role_id = r.id AND permission_id = p.id
     );
 END $$;
+
+-- Re-enable triggers after data load
+SET session_replication_role = 'origin';

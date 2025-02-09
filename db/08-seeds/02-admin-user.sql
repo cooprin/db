@@ -1,3 +1,6 @@
+-- Disable triggers temporarily for admin user creation
+SET session_replication_role = 'replica';
+
 -- Create default admin user and assign permissions
 DO $$
 DECLARE
@@ -32,7 +35,8 @@ BEGIN
         -- Assign admin role to user
         INSERT INTO auth.user_roles (user_id, role_id)
         VALUES (admin_user_id, admin_role_id);
-
-        
     END IF;
 END $$;
+
+-- Re-enable triggers after admin user creation
+SET session_replication_role = 'origin';
