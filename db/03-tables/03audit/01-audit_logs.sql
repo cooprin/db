@@ -60,11 +60,11 @@ BEGIN
             FROM information_schema.constraint_column_usage 
             WHERE constraint_name = 'check_audit_action_type'
         ) THEN
-            PERFORM core.add_constraint_if_not_exists(
-                'audit.audit_logs',
-                'check_audit_action_type',
-                'CHECK (action_type IN (''create'', ''update'', ''delete'', ''login'', ''logout'', ''other''))'
-            );
+PERFORM core.add_constraint_if_not_exists(
+    'audit.audit_logs',
+    'check_audit_action_type',
+    'CHECK (action_type IN (''create'', ''update'', ''delete'', ''login'', ''logout'', ''other'', ''login_failed'', ''login_success''))'
+);
         END IF;
 
         COMMENT ON TABLE audit.audit_logs IS 'System audit logs for tracking all changes';

@@ -1,4 +1,4 @@
--- Grant privileges to crmadmin
+-- Grant privileges to current user
 DO $$
 BEGIN
     -- Grant schema permissions
@@ -15,6 +15,9 @@ BEGIN
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA auth TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA core TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA audit TO %I', current_user);
+
+    -- Grant execute permissions on core functions
+    EXECUTE format('GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA core TO %I', current_user);
 END $$;
 
 -- Insert initial data
@@ -120,4 +123,14 @@ BEGIN
         WHERE name = v.name
     );
 
+    -- Grant all permissions to admin role
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    WHERE r.name = 'admin'
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
 END $$;
