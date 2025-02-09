@@ -33,7 +33,7 @@ RUN cd /tmp/sql-init && \
         cp "$f" "/docker-entrypoint-initdb.d/300_${schema_dir}_${number}_${filename#*-}"; \
     done && \
     # Копіюємо файли seeds
-    find . -path "*/07-seeds/*.sql" | sort | while read f; do \
+    find . -path "*/08-seeds/*.sql" | sort | while read f; do \
         filename=$(basename "$f"); \
         number=$(echo "$filename" | grep -o '^[0-9]\+' || echo "00"); \
         cp "$f" "/docker-entrypoint-initdb.d/700_${number}_${filename#*-}"; \
