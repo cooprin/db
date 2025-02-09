@@ -33,26 +33,6 @@ BEGIN
         INSERT INTO auth.user_roles (user_id, role_id)
         VALUES (admin_user_id, admin_role_id);
 
-        -- Log admin user creation
-        INSERT INTO audit.audit_logs (
-            user_id,
-            action_type,
-            entity_type,
-            entity_id,
-            new_values,
-            ip_address
-        ) VALUES (
-            admin_user_id,
-            'USER_CREATE',
-            'USER',
-            admin_user_id,
-            jsonb_build_object(
-                'email', 'cooprin@gmail.com',
-                'first_name', 'Roman',
-                'last_name', 'Tsyupryk',
-                'is_active', true
-            ),
-            '127.0.0.1'
-        );
+        
     END IF;
 END $$;
