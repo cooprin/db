@@ -42,21 +42,25 @@ BEGIN
 
     -- Формуємо зміни (тільки змінені поля)
     IF TG_OP = 'UPDATE' THEN
-        SELECT jsonb_object_agg(key, value)
-        INTO changes_json
-        FROM (
+        WITH field_changes AS (
             SELECT 
                 key,
-                jsonb_build_object(
-                    'old', old_value,
-                    'new', new_value
-                ) as value
+                old_fields.value as old_value,
+                new_fields.value as new_value
             FROM jsonb_each_text(to_jsonb(OLD)) old_fields
-            FULL OUTER JOIN jsonb_each_text(to_jsonb(NEW)) new_fields USING (key)
+            FULL OUTER JOIN jsonb_each_text(to_jsonb(NEW)) new_fields 
+            USING (key)
             WHERE old_fields.value IS DISTINCT FROM new_fields.value
-        ) changes;
-    ELSE
-        changes_json := NULL;
+        )
+        SELECT jsonb_object_agg(
+            key,
+            jsonb_build_object(
+                'old', old_value,
+                'new', new_value
+            )
+        )
+        INTO changes_json
+        FROM field_changes;
     END IF;
 
     -- Стандартизуємо назви сутностей
