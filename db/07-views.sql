@@ -97,4 +97,116 @@ BEGIN
     LEFT JOIN auth.users u ON al.user_id = u.id;
 
     COMMENT ON VIEW audit.view_audit_logs_with_users IS 'Audit logs with user details';
+
+    -- Products views
+    DROP VIEW IF EXISTS products.view_products_full;
+    CREATE VIEW products.view_products_full AS
+    SELECT 
+        p.id,
+        p.sku,
+        p.is_own,
+        p.purchase_date,
+        p.supplier_warranty_end,
+        p.warranty_end,
+        p.sale_date,
+        p.current_status,
+        p.current_object_id,
+        p.is_active,
+        m.name as model_name,
+        m.description as model_description,
+        m.image_url as model_image,
+        man.name as manufacturer_name,
+        s.name as supplier_name,
+        s.contact_person as supplier_contact,
+        s.phone as supplier_phone,
+        s.email as supplier_email,
+        p.created_at,
+        p.updated_at
+    FROM products.products p
+    LEFT JOIN products.models m ON p.model_id = m.id
+    LEFT JOIN products.manufacturers man ON m.manufacturer_id = man.id
+    LEFT JOIN products.suppliers s ON p.supplier_id = s.id;
+
+    COMMENT ON VIEW products.view_products_full IS 'Full product information with related data';
+
+    -- Warehouses views
+    DROP VIEW IF EXISTS warehouses.view_stock_current;
+    CREATE VIEW warehouses.view_stock_current AS
+    SELECT 
+        s.warehouse_id,
+        w.name as warehouse_name,
+        s.product_id,
+        p.sku,
+        m.name as model_name,
+        man.name as manufacturer_name,
+        s.quantity,
+        s.price,
+        p.current_status,
+        p.is_own,
+        u.email as responsible_person_email,
+        u.first_name || ' ' || u.last_name as responsible_person_name
+    FROM warehouses.stock s
+    JOIN warehouses.warehouses w ON s.warehouse_id = w.id
+    JOIN products.products p ON s.product_id = p.id
+    JOIN products.models m ON p.model_id = m.id
+    JOIN products.manufacturers man ON m.manufacturer_id = man.id
+    LEFT JOIN auth.users u ON w.responsible_person_id = u.id
+    WHERE s.quantity > 0;
+
+    COMMENT ON VIEW warehouses.view_stock_current IS 'Current stock in warehouses with product details';
+
+    -- Stock movements view
+    DROP VIEW IF EXISTS warehouses.view_stock_movements;
+    CREATE VIEW warehouses.view_stock_movements AS
+    SELECT 
+        sm.id,
+        sm.type,
+        sm.quantity,
+        sm.created_at,
+        p.sku,
+        m.name as model_name,
+        w_from.name as from_warehouse,
+        w_to.name as to_warehouse,
+        sm.wialon_object_id,
+        sm.warranty_change_days,
+        sm.comment,
+        u.email as created_by_user,
+        u.first_name || ' ' || u.last_name as created_by_name
+    FROM warehouses.stock_movements sm
+    JOIN products.products p ON sm.product_id = p.id
+    JOIN products.models m ON p.model_id = m.id
+    LEFT JOIN warehouses.warehouses w_from ON sm.from_warehouse_id = w_from.id
+    LEFT JOIN warehouses.warehouses w_to ON sm.to_warehouse_id = w_to.id
+    JOIN auth.users u ON sm.created_by = u.id
+    ORDER BY sm.created_at DESC;
+
+    COMMENT ON VIEW warehouses.view_stock_movements IS 'Stock movements history with related details';
+
+    -- Products with warranty view
+    DROP VIEW IF EXISTS products.view_products_warranty;
+    CREATE VIEW products.view_products_warranty AS
+    SELECT 
+        p.id,
+        p.sku,
+        m.name as model_name,
+        man.name as manufacturer_name,
+        s.name as supplier_name,
+        p.purchase_date,
+        p.supplier_warranty_end,
+        p.warranty_end,
+        p.current_status,
+        CASE 
+            WHEN p.warranty_end < CURRENT_DATE THEN 'Expired'
+            WHEN p.warranty_end < CURRENT_DATE + INTERVAL '30 days' THEN 'Expiring Soon'
+            ELSE 'Active'
+        END as warranty_status,
+        p.is_own,
+        p.current_object_id
+    FROM products.products p
+    JOIN products.models m ON p.model_id = m.id
+    JOIN products.manufacturers man ON m.manufacturer_id = man.id
+    JOIN products.suppliers s ON p.supplier_id = s.id
+    WHERE p.is_active = true;
+
+    COMMENT ON VIEW products.view_products_warranty IS 'Products warranty information and status';
 END $$;

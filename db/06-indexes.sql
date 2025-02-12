@@ -98,5 +98,107 @@ BEGIN
     GRANT USAGE ON SCHEMA audit TO current_user;
     GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA audit TO current_user;
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA audit TO current_user;
+-- Products schema indexes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'products' 
+        AND tablename = 'products' 
+        AND indexname = 'idx_products_sku'
+    ) THEN
+        CREATE INDEX idx_products_sku ON products.products(sku);
+    END IF;
 
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'products' 
+        AND tablename = 'products' 
+        AND indexname = 'idx_products_model'
+    ) THEN
+        CREATE INDEX idx_products_model ON products.products(model_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'products' 
+        AND tablename = 'products' 
+        AND indexname = 'idx_products_supplier'
+    ) THEN
+        CREATE INDEX idx_products_supplier ON products.products(supplier_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'products' 
+        AND tablename = 'products' 
+        AND indexname = 'idx_products_status'
+    ) THEN
+        CREATE INDEX idx_products_status ON products.products(current_status);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'products' 
+        AND tablename = 'models' 
+        AND indexname = 'idx_models_manufacturer'
+    ) THEN
+        CREATE INDEX idx_models_manufacturer ON products.models(manufacturer_id);
+    END IF;
+
+    -- Warehouses schema indexes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'warehouses' 
+        AND tablename = 'stock' 
+        AND indexname = 'idx_stock_warehouse_product'
+    ) THEN
+        CREATE INDEX idx_stock_warehouse_product ON warehouses.stock(warehouse_id, product_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'warehouses' 
+        AND tablename = 'stock_movements' 
+        AND indexname = 'idx_movements_created_at'
+    ) THEN
+        CREATE INDEX idx_movements_created_at ON warehouses.stock_movements(created_at DESC);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'warehouses' 
+        AND tablename = 'stock_movements' 
+        AND indexname = 'idx_movements_product'
+    ) THEN
+        CREATE INDEX idx_movements_product ON warehouses.stock_movements(product_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'warehouses' 
+        AND tablename = 'stock_movements' 
+        AND indexname = 'idx_movements_type'
+    ) THEN
+        CREATE INDEX idx_movements_type ON warehouses.stock_movements(type);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'warehouses' 
+        AND tablename = 'stock_movements' 
+        AND indexname = 'idx_movements_warehouses'
+    ) THEN
+        CREATE INDEX idx_movements_warehouses 
+        ON warehouses.stock_movements(from_warehouse_id, to_warehouse_id);
+    END IF;
+
+    -- Grant privileges for new schemas
+    -- Products schema
+    GRANT USAGE ON SCHEMA products TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA products TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA products TO current_user;
+
+    -- Warehouses schema
+    GRANT USAGE ON SCHEMA warehouses TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA warehouses TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA warehouses TO current_user;
 END $$;

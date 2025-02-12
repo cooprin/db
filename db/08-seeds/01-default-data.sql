@@ -5,16 +5,22 @@ BEGIN
     EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA auth TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA core TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA audit TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA products TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA warehouses TO %I', current_user);
 
     -- Grant table permissions
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA auth TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA core TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA audit TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA products TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA warehouses TO %I', current_user);
 
     -- Grant sequence permissions
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA auth TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA core TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA audit TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA products TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA warehouses TO %I', current_user);
 
     -- Grant execute permissions on core functions
     EXECUTE format('GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA core TO %I', current_user);
@@ -34,7 +40,12 @@ BEGIN
         ('Permissions', 'permissions', 'module'),
         ('Resources', 'resources', 'module'),
         ('Audit', 'audit', 'module'),
-        ('System', 'system', 'module')
+        ('System', 'system', 'module'),
+        ('Products', 'products', 'module'),
+    ('Manufacturers', 'manufacturers', 'table'),
+    ('Suppliers', 'suppliers', 'table'),
+    ('Warehouses', 'warehouses', 'module'),
+    ('Stock', 'stock', 'module')
     ) AS v (name, code, type)
     WHERE NOT EXISTS (
         SELECT 1 FROM core.resources
@@ -72,7 +83,9 @@ BEGIN
         ('Role Management', 'Permissions related to role management'),
         ('Permission Management', 'Permissions related to permission management'),
         ('Resource Management', 'Permissions related to resource management'),
-        ('System Management', 'System-level permissions')
+        ('System Management', 'System-level permissions'),
+            ('Product Management', 'Permissions related to product management'),
+    ('Warehouse Management', 'Permissions related to warehouse management')
     ) AS v (name, description)
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.permission_groups
@@ -94,7 +107,9 @@ BEGIN
             (pg.name = 'Role Management' AND r.code = 'roles') OR
             (pg.name = 'Permission Management' AND r.code = 'permissions') OR
             (pg.name = 'Resource Management' AND r.code = 'resources') OR
-            (pg.name = 'System Management' AND r.code IN ('audit', 'system'))
+            (pg.name = 'System Management' AND r.code IN ('audit', 'system')) OR
+            (pg.name = 'Product Management' AND r.code IN ('products', 'manufacturers', 'suppliers')) OR
+        (pg.name = 'Warehouse Management' AND r.code IN ('warehouses', 'stock'))
     )
     INSERT INTO auth.permissions (
         group_id, 

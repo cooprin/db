@@ -101,5 +101,138 @@ BEGIN
             FOR EACH ROW
             EXECUTE FUNCTION audit.log_table_change();
     END IF;
+    -- Products schema triggers
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'update_manufacturers_timestamp'
+    ) THEN
+        CREATE TRIGGER update_manufacturers_timestamp
+            BEFORE UPDATE ON products.manufacturers
+            FOR EACH ROW
+            EXECUTE FUNCTION core.update_timestamp();
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'update_suppliers_timestamp'
+    ) THEN
+        CREATE TRIGGER update_suppliers_timestamp
+            BEFORE UPDATE ON products.suppliers
+            FOR EACH ROW
+            EXECUTE FUNCTION core.update_timestamp();
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'update_models_timestamp'
+    ) THEN
+        CREATE TRIGGER update_models_timestamp
+            BEFORE UPDATE ON products.models
+            FOR EACH ROW
+            EXECUTE FUNCTION core.update_timestamp();
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'update_products_timestamp'
+    ) THEN
+        CREATE TRIGGER update_products_timestamp
+            BEFORE UPDATE ON products.products
+            FOR EACH ROW
+            EXECUTE FUNCTION core.update_timestamp();
+    END IF;
+
+    -- Warehouses schema triggers
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'update_warehouses_timestamp'
+    ) THEN
+        CREATE TRIGGER update_warehouses_timestamp
+            BEFORE UPDATE ON warehouses.warehouses
+            FOR EACH ROW
+            EXECUTE FUNCTION core.update_timestamp();
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'update_stock_timestamp'
+    ) THEN
+        CREATE TRIGGER update_stock_timestamp
+            BEFORE UPDATE ON warehouses.stock
+            FOR EACH ROW
+            EXECUTE FUNCTION core.update_timestamp();
+    END IF;
+
+    -- Audit triggers for Products schema
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'audit_manufacturers_changes'
+    ) THEN
+        CREATE TRIGGER audit_manufacturers_changes
+            AFTER INSERT OR UPDATE OR DELETE ON products.manufacturers
+            FOR EACH ROW
+            EXECUTE FUNCTION audit.log_table_change();
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'audit_suppliers_changes'
+    ) THEN
+        CREATE TRIGGER audit_suppliers_changes
+            AFTER INSERT OR UPDATE OR DELETE ON products.suppliers
+            FOR EACH ROW
+            EXECUTE FUNCTION audit.log_table_change();
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'audit_models_changes'
+    ) THEN
+        CREATE TRIGGER audit_models_changes
+            AFTER INSERT OR UPDATE OR DELETE ON products.models
+            FOR EACH ROW
+            EXECUTE FUNCTION audit.log_table_change();
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'audit_products_changes'
+    ) THEN
+        CREATE TRIGGER audit_products_changes
+            AFTER INSERT OR UPDATE OR DELETE ON products.products
+            FOR EACH ROW
+            EXECUTE FUNCTION audit.log_table_change();
+    END IF;
+
+    -- Audit triggers for Warehouses schema
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'audit_warehouses_changes'
+    ) THEN
+        CREATE TRIGGER audit_warehouses_changes
+            AFTER INSERT OR UPDATE OR DELETE ON warehouses.warehouses
+            FOR EACH ROW
+            EXECUTE FUNCTION audit.log_table_change();
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'audit_stock_changes'
+    ) THEN
+        CREATE TRIGGER audit_stock_changes
+            AFTER INSERT OR UPDATE OR DELETE ON warehouses.stock
+            FOR EACH ROW
+            EXECUTE FUNCTION audit.log_table_change();
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'audit_stock_movements_changes'
+    ) THEN
+        CREATE TRIGGER audit_stock_movements_changes
+            AFTER INSERT OR UPDATE OR DELETE ON warehouses.stock_movements
+            FOR EACH ROW
+            EXECUTE FUNCTION audit.log_table_change();
+    END IF;
 END;
 $$;
