@@ -42,10 +42,22 @@ BEGIN
         ('Audit', 'audit', 'module'),
         ('System', 'system', 'module'),
         ('Products', 'products', 'module'),
-    ('Manufacturers', 'manufacturers', 'table'),
-    ('Suppliers', 'suppliers', 'table'),
-    ('Warehouses', 'warehouses', 'module'),
-    ('Stock', 'stock', 'module')
+        ('Manufacturers', 'manufacturers', 'table'),
+        ('Suppliers', 'suppliers', 'table'),
+        ('Models', 'models', 'table'),
+        ('Product Types', 'product_types', 'table'),
+        ('Product Characteristics', 'product_characteristics', 'module'),
+        ('Warehouses', 'warehouses', 'module'),
+        ('Stock', 'stock', 'module'),
+        ('Stock Movements', 'stock_movements', 'table'),
+        ('Reports', 'reports', 'module'),
+        ('Analytics', 'analytics', 'module'),
+        ('Warranty Management', 'warranty', 'module'),
+        ('Repair Management', 'repair', 'module'),
+        ('Notifications', 'notifications', 'module'),
+        ('Settings', 'settings', 'module'),
+        ('Documents', 'documents', 'module'),
+        ('Logs', 'logs', 'module')
     ) AS v (name, code, type)
     WHERE NOT EXISTS (
         SELECT 1 FROM core.resources
@@ -59,7 +71,17 @@ BEGIN
         ('Read', 'read', 'Permission to read records'),
         ('Update', 'update', 'Permission to update records'),
         ('Delete', 'delete', 'Permission to delete records'),
-        ('Manage', 'manage', 'Full management permission')
+        ('Manage', 'manage', 'Full management permission'),
+        ('Export', 'export', 'Permission to export data'),
+        ('Import', 'import', 'Permission to import data'),
+        ('Print', 'print', 'Permission to print documents'),
+        ('Approve', 'approve', 'Permission to approve operations'),
+        ('Cancel', 'cancel', 'Permission to cancel operations'),
+        ('Archive', 'archive', 'Permission to archive records'),
+        ('Restore', 'restore', 'Permission to restore archived records'),
+        ('Transfer', 'transfer', 'Permission to transfer items'),
+        ('Assign', 'assign', 'Permission to assign items or tasks'),
+        ('Configure', 'configure', 'Permission to configure settings')
     ) AS v (name, code, description)
     WHERE NOT EXISTS (
         SELECT 1 FROM core.actions
@@ -84,8 +106,24 @@ BEGIN
         ('Permission Management', 'Permissions related to permission management'),
         ('Resource Management', 'Permissions related to resource management'),
         ('System Management', 'System-level permissions'),
-            ('Product Management', 'Permissions related to product management'),
-    ('Warehouse Management', 'Permissions related to warehouse management')
+        ('Product Management', 'Permissions related to product management'),
+        ('Product Type Management', 'Permissions related to product types and characteristics'),
+        ('Product Model Management', 'Permissions related to product models'),
+        ('Manufacturer Management', 'Permissions related to manufacturers'),
+        ('Supplier Management', 'Permissions related to suppliers'),
+        ('Warehouse Management', 'Permissions related to warehouse operations'),
+        ('Stock Management', 'Permissions related to stock operations'),
+        ('Stock Movement Management', 'Permissions related to stock movements and transfers'),
+        ('Warranty Management', 'Permissions related to warranty tracking and management'),
+        ('Repair Management', 'Permissions related to repair operations'),
+        ('Report Management', 'Permissions related to reporting'),
+        ('Analytics Access', 'Permissions related to analytics and dashboards'),
+        ('Document Management', 'Permissions related to document operations'),
+        ('Import Export Management', 'Permissions for import/export operations'),
+        ('Notification Management', 'Permissions related to notification settings'),
+        ('System Configuration', 'Permissions related to system configuration'),
+        ('Audit Log Access', 'Permissions related to audit log viewing'),
+        ('Archive Management', 'Permissions related to archiving and restoration')
     ) AS v (name, description)
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.permission_groups
@@ -108,8 +146,24 @@ BEGIN
             (pg.name = 'Permission Management' AND r.code = 'permissions') OR
             (pg.name = 'Resource Management' AND r.code = 'resources') OR
             (pg.name = 'System Management' AND r.code IN ('audit', 'system')) OR
-            (pg.name = 'Product Management' AND r.code IN ('products', 'manufacturers', 'suppliers')) OR
-        (pg.name = 'Warehouse Management' AND r.code IN ('warehouses', 'stock'))
+            (pg.name = 'Product Management' AND r.code = 'products') OR
+            (pg.name = 'Product Type Management' AND r.code IN ('product_types', 'product_characteristics')) OR
+            (pg.name = 'Product Model Management' AND r.code = 'models') OR
+            (pg.name = 'Manufacturer Management' AND r.code = 'manufacturers') OR
+            (pg.name = 'Supplier Management' AND r.code = 'suppliers') OR
+            (pg.name = 'Warehouse Management' AND r.code = 'warehouses') OR
+            (pg.name = 'Stock Management' AND r.code = 'stock') OR
+            (pg.name = 'Stock Movement Management' AND r.code = 'stock_movements') OR
+            (pg.name = 'Warranty Management' AND r.code = 'warranty') OR
+            (pg.name = 'Repair Management' AND r.code = 'repair') OR
+            (pg.name = 'Report Management' AND r.code = 'reports') OR
+            (pg.name = 'Analytics Access' AND r.code = 'analytics') OR
+            (pg.name = 'Document Management' AND r.code = 'documents') OR
+            (pg.name = 'Import Export Management' AND r.code IN ('products', 'stock')) OR
+            (pg.name = 'Notification Management' AND r.code = 'notifications') OR
+            (pg.name = 'System Configuration' AND r.code = 'settings') OR
+            (pg.name = 'Audit Log Access' AND r.code = 'logs') OR
+            (pg.name = 'Archive Management' AND r.code IN ('products', 'documents', 'stock_movements'))
     )
     INSERT INTO auth.permissions (
         group_id, 
@@ -134,6 +188,13 @@ BEGIN
     INSERT INTO auth.roles (name, description, is_system)
     SELECT * FROM (VALUES
         ('admin', 'System administrator with full access', true),
+        ('warehouse_manager', 'Warehouse manager with stock control permissions', true),
+        ('product_manager', 'Product manager with catalog management permissions', true),
+        ('support_specialist', 'Support specialist with repair and warranty management', true),
+        ('report_viewer', 'User with read-only access to reports', true),
+        ('stock_controller', 'User responsible for stock operations', true),
+        ('warranty_manager', 'User managing warranty claims and tracking', true),
+        ('system_auditor', 'User with access to audit logs and system monitoring', true),
         ('user', 'Regular user with basic permissions', true)
     ) AS v (name, description, is_system)
     WHERE NOT EXISTS (
@@ -151,7 +212,117 @@ BEGIN
         SELECT 1 FROM auth.role_permissions
         WHERE role_id = r.id AND permission_id = p.id
     );
-END $$;
+
+    -- Grant warehouse permissions to warehouse_manager role
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'warehouse_manager'
+    AND pg.name IN ('Warehouse Management', 'Stock Management', 'Stock Movement Management', 
+                   'Document Management', 'Report Management')
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Grant product management permissions to product_manager role
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'product_manager'
+    AND pg.name IN ('Product Management', 'Product Type Management', 'Product Model Management',
+                   'Manufacturer Management', 'Supplier Management', 'Document Management')
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Grant support permissions to support_specialist role
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'support_specialist'
+    AND pg.name IN ('Warranty Management', 'Repair Management', 'Document Management')
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Grant stock controller permissions
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'stock_controller'
+    AND pg.name IN ('Stock Management', 'Stock Movement Management', 'Document Management')
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Grant warranty manager permissions
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'warranty_manager'
+    AND pg.name IN ('Warranty Management', 'Document Management', 'Report Management')
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Grant system auditor permissions
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'system_auditor'
+    AND pg.name IN ('Audit Log Access', 'Report Management', 'Analytics Access')
+    AND p.code LIKE '%.read'
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Grant report viewing permissions to report_viewer role
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'report_viewer'
+    AND pg.name IN ('Report Management', 'Analytics Access')
+    AND p.code LIKE '%.read'
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Grant basic permissions to user role
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'user'
+    AND pg.name IN ('Report Management')
+    AND p.code LIKE '%.read'
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+END $;
 
 -- Re-enable triggers after data load
 SET session_replication_role = 'origin';
