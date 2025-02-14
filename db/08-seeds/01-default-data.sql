@@ -322,7 +322,7 @@ BEGIN
         WHERE role_id = r.id AND permission_id = p.id
     );
 
-END $;
+END $$;
 
 -- Re-enable triggers after data load
 SET session_replication_role = 'origin';
