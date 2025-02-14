@@ -83,22 +83,7 @@ BEGIN
         ON audit.audit_logs(entity_type, entity_id, created_at);
     END IF;
 
-    -- Grant privileges
-    -- Auth schema
-    GRANT USAGE ON SCHEMA auth TO current_user;
-    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA auth TO current_user;
-    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA auth TO current_user;
-
-    -- Core schema
-    GRANT USAGE ON SCHEMA core TO current_user;
-    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA core TO current_user;
-    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA core TO current_user;
-
-    -- Audit schema
-    GRANT USAGE ON SCHEMA audit TO current_user;
-    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA audit TO current_user;
-    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA audit TO current_user;
--- Products schema indexes
+    -- Products schema indexes
     IF NOT EXISTS (
         SELECT 1 FROM pg_indexes 
         WHERE schemaname = 'products' 
@@ -138,10 +123,56 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_indexes 
         WHERE schemaname = 'products' 
+        AND tablename = 'products' 
+        AND indexname = 'idx_products_type'
+    ) THEN
+        CREATE INDEX idx_products_type ON products.products(product_type_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'products' 
         AND tablename = 'models' 
         AND indexname = 'idx_models_manufacturer'
     ) THEN
         CREATE INDEX idx_models_manufacturer ON products.models(manufacturer_id);
+    END IF;
+
+    -- Product types indexes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'products' 
+        AND tablename = 'product_types' 
+        AND indexname = 'idx_product_types_code'
+    ) THEN
+        CREATE INDEX idx_product_types_code ON products.product_types(code);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'products' 
+        AND tablename = 'product_type_characteristics' 
+        AND indexname = 'idx_characteristics_type'
+    ) THEN
+        CREATE INDEX idx_characteristics_type ON products.product_type_characteristics(product_type_id, code);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'products' 
+        AND tablename = 'product_characteristic_values' 
+        AND indexname = 'idx_characteristic_values_product'
+    ) THEN
+        CREATE INDEX idx_characteristic_values_product ON products.product_characteristic_values(product_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'products' 
+        AND tablename = 'product_characteristic_values' 
+        AND indexname = 'idx_characteristic_values_characteristic'
+    ) THEN
+        CREATE INDEX idx_characteristic_values_characteristic ON products.product_characteristic_values(characteristic_id);
     END IF;
 
     -- Warehouses schema indexes
@@ -191,7 +222,22 @@ BEGIN
         ON warehouses.stock_movements(from_warehouse_id, to_warehouse_id);
     END IF;
 
-    -- Grant privileges for new schemas
+    -- Grant privileges
+    -- Auth schema
+    GRANT USAGE ON SCHEMA auth TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA auth TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA auth TO current_user;
+
+    -- Core schema
+    GRANT USAGE ON SCHEMA core TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA core TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA core TO current_user;
+
+    -- Audit schema
+    GRANT USAGE ON SCHEMA audit TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA audit TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA audit TO current_user;
+
     -- Products schema
     GRANT USAGE ON SCHEMA products TO current_user;
     GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA products TO current_user;

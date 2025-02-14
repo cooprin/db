@@ -1,34 +1,37 @@
 # Database Initialization Structure
 
 ## Overview
-This directory contains PostgreSQL initialization scripts that create the database structure with authentication, authorization, resource management and audit logging functionality.
+This directory contains PostgreSQL initialization scripts that create the database structure with authentication, authorization, resource management, and audit logging functionality.
 
 ## File Structure
 ```
-db/
-└── init/
-    ├── 00-extensions.sql       # PostgreSQL extensions (uuid-ossp, ltree, etc.)
-    ├── 01-schemas.sql         # Database schemas (auth, core, audit)
-    ├── 02-functions.sql       # Helper functions for constraints and triggers
-    ├── 03-tables/            # Tables organized by schema
-    │   ├── auth/             # Authentication & authorization tables
-    │   │   ├── 01-users.sql
-    │   │   ├── 02-roles.sql
-    │   │   ├── 03-permissions.sql
-    │   │   └── 04-user_roles.sql
-    │   ├── core/             # Core functionality tables
-    │   │   ├── 01-resources.sql
-    │   │   ├── 02-actions.sql
-    │   │   └── 03-resource_actions.sql
-    │   └── audit/            # Audit logging tables
-    │       └── 01-audit_logs.sql
-    ├── 04-triggers.sql       # Database triggers for timestamps
-    ├── 05-views.sql         # Views for common data access patterns
-    ├── 06-indexes.sql       # Database indexes and constraints
-    └── 07-seeds/           # Initial data and admin user
-        ├── 01-default-data.sql
-        └── 02-admin-user.sql
-```
+db/ ├── 00-extensions.sql # PostgreSQL extensions (uuid-ossp, ltree, etc.) 
+    ├── 01-schemas.sql # Database schemas (auth, core, audit) 
+    ├── 02-functions.sql # Helper functions for constraints and triggers 
+    ├── 04-audit_function.sql # Audit logging function 
+    ├── 05-triggers.sql # Database triggers for timestamps 
+    ├── 06-indexes.sql # Database indexes and constraints 
+    ├── 07-views.sql # Views for common data access patterns 
+    ├── README.md 
+    ├── 03-tables/ # Tables organized by schema 
+    │ ├── 01auth/ # Authentication & authorization tables 
+    │ │ ├── 01-users.sql 
+    │ │ ├── 02-roles.sql 
+    │ │ ├── 03-permissions.sql 
+    │ │ └── 04-user_roles.sql 
+    │ ├── 02core/ # Core functionality tables 
+    │ │ ├── 01-resources.sql 
+    │ │ ├── 02-actions.sql 
+    │ ├── 03audit/ # Audit logging tables 
+    │ │ └── 01-audit_logs.sql 
+    │ ├── 04products/ # Products related tables 
+    │ │ └── 01-products.sql 
+    │ └── 05warehouses/ # Warehouses related tables 
+    │ └── 01-warehouses.sql 
+    ├── 08-seeds/ # Initial data and admin user 
+    | ├── 01-default-data.sql 
+    └└── 02-admin-user.sql
+## Schema Structure
 
 ## Execution Order
 Files are executed in alphanumeric order:
@@ -36,10 +39,11 @@ Files are executed in alphanumeric order:
 2. Schemas (01) - Database schema creation
 3. Functions (02) - Helper functions used by other scripts
 4. Tables (03) - Table creation grouped by schema
-5. Triggers (04) - Timestamp update triggers
-6. Views (05) - Database views creation
+5. Audit Function (04) - Audit logging function
+6. Triggers (05) - Timestamp update triggers
 7. Indexes (06) - Index creation and optimization
-8. Seeds (07) - Initial data population
+8. Views (07) - Database views creation
+9. Seeds (08) - Initial data population
 
 ## Schema Structure
 
@@ -61,6 +65,14 @@ Core system functionality:
 ### Audit Schema
 Audit logging functionality:
 - `audit_logs` - System activity logging
+
+### Products Schema
+Tables related to product management:
+- `products` - Products catalog
+
+### Warehouses Schema
+Tables related to warehouse management:
+- `warehouses` - Warehouses list
 
 ## Database Features
 - UUID primary keys
@@ -90,4 +102,3 @@ To rebuild the database:
 ```bash
 docker-compose down -v
 docker-compose up -d
-```

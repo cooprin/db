@@ -70,11 +70,7 @@ BEGIN
             sku VARCHAR(255) NOT NULL,
             model_id UUID NOT NULL,
             supplier_id UUID NOT NULL,
-            is_own BOOLEAN DEFAULT true,
-            purchase_date DATE,
-            supplier_warranty_end DATE,
-            warranty_end DATE,
-            sale_date DATE,
+            product_type_id UUID NOT NULL,
             current_status VARCHAR(50) DEFAULT 'in_stock',
             current_object_id UUID,
             is_active BOOLEAN DEFAULT true,
@@ -104,6 +100,12 @@ BEGIN
         'products.products',
         'fk_products_supplier',
         'FOREIGN KEY (supplier_id) REFERENCES products.suppliers(id)'
+    );
+
+    PERFORM core.add_constraint_if_not_exists(
+        'products.products',
+        'fk_products_type',
+        'FOREIGN KEY (product_type_id) REFERENCES products.product_types(id)'
     );
 
     -- Status constraint
