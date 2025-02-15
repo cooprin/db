@@ -268,20 +268,7 @@ BEGIN
         WHERE role_id = r.id AND permission_id = p.id
     );
 
-    -- Grant warranty manager permissions
-    INSERT INTO auth.role_permissions (role_id, permission_id)
-    SELECT r.id, p.id
-    FROM auth.roles r
-    CROSS JOIN auth.permissions p
-    JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'warranty_manager'
-    AND pg.name IN ('Warranty Management', 'Document Management', 'Report Management')
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.role_permissions
-        WHERE role_id = r.id AND permission_id = p.id
-    );
-
-    -- Grant system auditor permissions
+        -- Grant system auditor permissions
     INSERT INTO auth.role_permissions (role_id, permission_id)
     SELECT r.id, p.id
     FROM auth.roles r
@@ -295,7 +282,7 @@ BEGIN
         WHERE role_id = r.id AND permission_id = p.id
     );
 
-  -- Grant warranty manager permissions
+-- Grant warranty manager permissions
 INSERT INTO auth.role_permissions (role_id, permission_id)
 SELECT r.id, p.id
 FROM auth.roles r
@@ -307,14 +294,6 @@ AND NOT EXISTS (
     SELECT 1 FROM auth.role_permissions
     WHERE role_id = r.id AND permission_id = p.id
 );
-CROSS JOIN auth.permissions p
-    JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'warranty_manager'
-    AND pg.name IN ('Warranty Management', 'Document Management', 'Report Management')
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.role_permissions
-        WHERE role_id = r.id AND permission_id = p.id
-    );
 
     -- Grant system auditor permissions
     INSERT INTO auth.role_permissions (role_id, permission_id)
