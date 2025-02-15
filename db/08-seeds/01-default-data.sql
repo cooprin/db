@@ -130,9 +130,9 @@ BEGIN
         WHERE name = v.name
     );
 
-    -- Insert default permissions
+    -- Insert default permissions with conflict handling
     WITH permission_data AS (
-        SELECT 
+        SELECT DISTINCT
             pg.id as group_id,
             r.id as resource_id,
             r.code as resource_code,
@@ -146,7 +146,7 @@ BEGIN
             (pg.name = 'Permission Management' AND r.code = 'permissions') OR
             (pg.name = 'Resource Management' AND r.code = 'resources') OR
             (pg.name = 'System Management' AND r.code IN ('audit', 'system')) OR
-            (pg.name = 'Product Management' AND r.code = 'products') OR
+            (pg.name = 'Product Management' AND r.code = 'products' AND pg.name = 'Product Management') OR
             (pg.name = 'Product Type Management' AND r.code IN ('product_types', 'product_characteristics')) OR
             (pg.name = 'Product Model Management' AND r.code = 'models') OR
             (pg.name = 'Manufacturer Management' AND r.code = 'manufacturers') OR
@@ -159,11 +159,11 @@ BEGIN
             (pg.name = 'Report Management' AND r.code = 'reports') OR
             (pg.name = 'Analytics Access' AND r.code = 'analytics') OR
             (pg.name = 'Document Management' AND r.code = 'documents') OR
-            (pg.name = 'Import Export Management' AND r.code IN ('products', 'stock')) OR
+            (pg.name = 'Import Export Management' AND r.code = 'products' AND pg.name = 'Import Export Management') OR
             (pg.name = 'Notification Management' AND r.code = 'notifications') OR
             (pg.name = 'System Configuration' AND r.code = 'settings') OR
             (pg.name = 'Audit Log Access' AND r.code = 'logs') OR
-            (pg.name = 'Archive Management' AND r.code IN ('products', 'documents', 'stock_movements'))
+            (pg.name = 'Archive Management' AND r.code IN ('products', 'documents', 'stock_movements') AND pg.name = 'Archive Management')
     )
     INSERT INTO auth.permissions (
         group_id, 
@@ -172,7 +172,7 @@ BEGIN
         code, 
         is_system
     )
-    SELECT 
+    SELECT DISTINCT
         pd.group_id,
         pd.resource_id,
         pd.resource_code || '.' || pd.action_code as name,
@@ -182,7 +182,8 @@ BEGIN
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.permissions
         WHERE code = pd.resource_code || '.' || pd.action_code
-    );
+    )
+    ON CONFLICT (code) DO NOTHING;
 
     -- Insert default roles if they don't exist
     INSERT INTO auth.roles (name, description, is_system)
@@ -272,6 +273,41 @@ BEGIN
     SELECT r.id, p.id
     FROM auth.roles r
     CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'warranty_manager'
+    AND pg.name IN ('Warranty Management', 'Document Management', 'Report Management')
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Grant system auditor permissions
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'system_auditor'
+    AND pg.name IN ('Audit Log Access', 'Report Management', 'Analytics Access')
+    AND p.code LIKE '%.read'
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+  -- Grant warranty manager permissions
+INSERT INTO auth.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM auth.roles r
+CROSS JOIN auth.permissions p
+JOIN auth.permission_groups pg ON p.group_id = pg.id
+WHERE r.name = 'warranty_manager'
+AND pg.name IN ('Warranty Management', 'Document Management', 'Report Management')
+AND NOT EXISTS (
+    SELECT 1 FROM auth.role_permissions
+    WHERE role_id = r.id AND permission_id = p.id
+);
+CROSS JOIN auth.permissions p
     JOIN auth.permission_groups pg ON p.group_id = pg.id
     WHERE r.name = 'warranty_manager'
     AND pg.name IN ('Warranty Management', 'Document Management', 'Report Management')
