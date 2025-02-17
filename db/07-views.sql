@@ -256,6 +256,39 @@ BEGIN
    JOIN auth.users u ON sm.created_by = u.id
    ORDER BY sm.created_at DESC;
 
+   -- Modify products.view_product_types_full to include characteristic type details
+   DROP VIEW IF EXISTS products.view_product_types_full;
+   CREATE VIEW products.view_product_types_full AS
+   SELECT 
+       pt.id,
+       pt.name,
+       pt.code,
+       pt.description,
+       pt.is_active,
+       jsonb_agg(
+           jsonb_build_object(
+               'id', ptc.id,
+               'name', ptc.name,
+               'code', ptc.code,
+               'type', ptc.type,
+               'type_label', ct.label,
+               'type_description', ct.description,
+               'is_required', ptc.is_required,
+               'default_value', ptc.default_value,
+               'validation_rules', ptc.validation_rules,
+               'options', ptc.options,
+               'ordering', ptc.ordering
+           ) ORDER BY ptc.ordering
+       ) FILTER (WHERE ptc.id IS NOT NULL) as characteristics,
+       COUNT(DISTINCT p.id) as products_count,
+       pt.created_at,
+       pt.updated_at
+   FROM products.product_types pt
+   LEFT JOIN products.product_type_characteristics ptc ON pt.id = ptc.product_type_id
+   LEFT JOIN products.characteristic_types ct ON ptc.type = ct.value
+   LEFT JOIN products.products p ON pt.id = p.product_type_id
+   GROUP BY pt.id;
+
    COMMENT ON VIEW warehouses.view_stock_movements IS 'Stock movements history with related details';
 
 END $$;

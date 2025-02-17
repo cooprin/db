@@ -303,5 +303,26 @@ BEGIN
            FOR EACH ROW
            EXECUTE FUNCTION audit.log_table_change();
    END IF;
+   -- Characteristic types table
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_characteristic_types_timestamp'
+   ) THEN
+       CREATE TRIGGER update_characteristic_types_timestamp
+           BEFORE UPDATE ON products.characteristic_types
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   -- Додати тригер аудиту
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_characteristic_types_changes'
+   ) THEN
+       CREATE TRIGGER audit_characteristic_types_changes
+           AFTER INSERT OR UPDATE OR DELETE ON products.characteristic_types
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
 END;
 $$;

@@ -222,6 +222,16 @@ BEGIN
         ON warehouses.stock_movements(from_warehouse_id, to_warehouse_id);
     END IF;
 
+    -- Characteristic types index
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'products' 
+        AND tablename = 'characteristic_types' 
+        AND indexname = 'idx_characteristic_types_value'
+    ) THEN
+        CREATE INDEX idx_characteristic_types_value ON products.characteristic_types(value);
+    END IF;
+
     -- Grant privileges
     -- Auth schema
     GRANT USAGE ON SCHEMA auth TO current_user;
