@@ -73,6 +73,24 @@ IF NOT EXISTS (
     RAISE NOTICE 'Product type characteristics table created';
 END IF;
 
+-- Таблиця кодів типів продуктів
+IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'products' AND table_name = 'product_type_codes'
+) THEN
+    CREATE TABLE products.product_type_codes (
+        value VARCHAR(10) PRIMARY KEY,
+        label VARCHAR(100) NOT NULL,
+        description TEXT,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+
+    COMMENT ON TABLE products.product_type_codes IS 'Product type codes catalog';
+    RAISE NOTICE 'Product type codes table created';
+END IF;
+
     -- Manufacturers table
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.tables 
