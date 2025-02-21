@@ -176,6 +176,7 @@ END IF;
             current_status VARCHAR(50) DEFAULT 'in_stock',
             current_object_id UUID,
             is_active BOOLEAN DEFAULT true,
+            is_own BOOLEAN DEFAULT true,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT products_sku_unique UNIQUE(sku)
