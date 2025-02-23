@@ -205,29 +205,29 @@ BEGIN
    COMMENT ON VIEW products.view_products_warranty IS 'Products warranty information and status based on characteristics';
 
    -- Stock view
-   DROP VIEW IF EXISTS warehouses.view_stock_current;
-   CREATE VIEW warehouses.view_stock_current AS
-   SELECT 
-       s.warehouse_id,
-       w.name as warehouse_name,
-       s.product_id,
-       p.sku,
-       pt.name as product_type_name,
-       m.name as model_name,
-       man.name as manufacturer_name,
-       s.quantity,
-       s.price,
-       p.current_status,
-       u.email as responsible_person_email,
-       u.first_name || ' ' || u.last_name as responsible_person_name
-   FROM warehouses.stock s
-   JOIN warehouses.warehouses w ON s.warehouse_id = w.id
-   JOIN products.products p ON s.product_id = p.id
-   JOIN products.product_types pt ON p.product_type_id = pt.id
-   JOIN products.models m ON p.model_id = m.id
-   JOIN products.manufacturers man ON m.manufacturer_id = man.id
-   LEFT JOIN auth.users u ON w.responsible_person_id = u.id
-   WHERE s.quantity > 0;
+DROP VIEW IF EXISTS warehouses.view_stock_current;
+CREATE VIEW warehouses.view_stock_current AS
+SELECT 
+    s.warehouse_id,
+    w.name as warehouse_name,
+    s.product_id,
+    p.sku,
+    pt.name as product_type_name,
+    m.name as model_name,
+    man.name as manufacturer_name,
+    p.current_status,
+    p.current_object_id,  -- додано поле
+    s.price,
+    u.email as responsible_person_email,
+    u.first_name || ' ' || u.last_name as responsible_person_name
+FROM warehouses.stock s
+JOIN warehouses.warehouses w ON s.warehouse_id = w.id
+JOIN products.products p ON s.product_id = p.id
+JOIN products.product_types pt ON p.product_type_id = pt.id
+JOIN products.models m ON p.model_id = m.id
+JOIN products.manufacturers man ON m.manufacturer_id = man.id
+LEFT JOIN auth.users u ON w.responsible_person_id = u.id
+WHERE p.current_status = 'in_stock';
 
    COMMENT ON VIEW warehouses.view_stock_current IS 'Current stock in warehouses with product details';
 

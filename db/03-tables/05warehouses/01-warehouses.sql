@@ -20,25 +20,25 @@ BEGIN
         RAISE NOTICE 'Warehouses table created';
     END IF;
 
-    -- Stock table
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.tables 
-        WHERE table_schema = 'warehouses' AND table_name = 'stock'
-    ) THEN
-        CREATE TABLE warehouses.stock (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            warehouse_id UUID NOT NULL,
-            product_id UUID NOT NULL,
-            quantity INTEGER NOT NULL DEFAULT 0,
-            price DECIMAL(10,2),
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT stock_warehouse_product_unique UNIQUE(warehouse_id, product_id)
-        );
-        
-        COMMENT ON TABLE warehouses.stock IS 'Current stock in warehouses';
-        RAISE NOTICE 'Stock table created';
-    END IF;
+-- Stock table
+IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'warehouses' AND table_name = 'stock'
+) THEN
+    CREATE TABLE warehouses.stock (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        warehouse_id UUID NOT NULL,
+        product_id UUID NOT NULL,
+        quantity INTEGER NOT NULL DEFAULT 1,  -- змінено DEFAULT на 1
+        price DECIMAL(10,2),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT stock_warehouse_product_unique UNIQUE(warehouse_id, product_id)
+    );
+    
+    COMMENT ON TABLE warehouses.stock IS 'Current stock in warehouses';
+    RAISE NOTICE 'Stock table created';
+END IF;
 
     -- Stock movements table
     IF NOT EXISTS (
