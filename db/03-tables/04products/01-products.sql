@@ -214,15 +214,17 @@ BEGIN
         WHERE proname = 'check_product_type_match' 
         AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'products')
     ) THEN
-        CREATE FUNCTION products.check_product_type_match()
-        RETURNS TRIGGER AS $$
+        CREATE OR REPLACE FUNCTION products.check_product_type_match()
+        RETURNS TRIGGER 
+        LANGUAGE plpgsql
+        AS $function$
         BEGIN
             IF NOT EXISTS (SELECT 1 FROM products.models WHERE id = NEW.model_id) THEN
-                RAISE EXCEPTION 'Model not found';
+                RAISE EXCEPTION 'Модель не знайдено';
             END IF;
             RETURN NEW;
         END;
-        $$ LANGUAGE plpgsql;
+        $function$;
 
         DROP TRIGGER IF EXISTS check_product_type_match_trigger ON products.products;
         
@@ -231,7 +233,7 @@ BEGIN
             FOR EACH ROW
             EXECUTE FUNCTION products.check_product_type_match();
 
-        RAISE NOTICE 'Product model check trigger created';
+        RAISE NOTICE 'Тригер перевірки моделі продукту створено';
     END IF;
 
     -- Product characteristic values table
