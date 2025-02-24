@@ -134,24 +134,25 @@ END IF;
     -- 2. Create tables that depend on manufacturers
     
     -- Models table
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.tables 
-        WHERE table_schema = 'products' AND table_name = 'models'
-    ) THEN
-        CREATE TABLE products.models (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            name VARCHAR(255) NOT NULL,
-            description TEXT,
-            manufacturer_id UUID NOT NULL,
-            image_url TEXT,
-            is_active BOOLEAN DEFAULT true,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        COMMENT ON TABLE products.models IS 'Product models catalog';
-        RAISE NOTICE 'Models table created';
-    END IF;
+IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables 
+    WHERE table_schema = 'products' AND table_name = 'models'
+) THEN
+    CREATE TABLE products.models (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        manufacturer_id UUID NOT NULL,
+        product_type_id UUID NOT NULL,  -- додано нове поле
+        image_url TEXT,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    
+    COMMENT ON TABLE products.models IS 'Product models catalog';
+    RAISE NOTICE 'Models table created';
+END IF;
 
     -- Add foreign key for models
     PERFORM core.add_constraint_if_not_exists(
@@ -159,6 +160,12 @@ END IF;
         'fk_models_manufacturer',
         'FOREIGN KEY (manufacturer_id) REFERENCES products.manufacturers(id)'
     );
+    -- Add foreign key for product type
+PERFORM core.add_constraint_if_not_exists(
+    'products.models',
+    'fk_models_product_type',
+    'FOREIGN KEY (product_type_id) REFERENCES products.product_types(id)'
+);
 
     -- 3. Create products table that depends on models, suppliers, and product_types
     
@@ -211,6 +218,12 @@ END IF;
         'chk_products_status',
         'CHECK (current_status IN (''in_stock'', ''installed'', ''in_repair'', ''written_off''))'
     );
+    -- Check product type matches model type
+PERFORM core.add_constraint_if_not_exists(
+    'products.products',
+    'check_product_type_match',
+    'CHECK (product_type_id = (SELECT product_type_id FROM products.models WHERE id = model_id))'
+);
 
     -- 4. Create characteristics tables that depend on product_types
     

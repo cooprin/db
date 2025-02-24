@@ -99,43 +99,43 @@ BEGIN
    COMMENT ON VIEW audit.view_audit_logs_with_users IS 'Audit logs with user details';
 
    -- Products view with characteristics
-   DROP VIEW IF EXISTS products.view_products_full;
-   CREATE VIEW products.view_products_full AS
-   SELECT 
-       p.id,
-       p.sku,
-       p.current_status,
-       p.current_object_id,
-       p.is_active,
-       pt.name as product_type_name,
-       pt.code as product_type_code,
-       m.name as model_name,
-       m.description as model_description,
-       m.image_url as model_image,
-       man.name as manufacturer_name,
-       s.name as supplier_name,
-       s.contact_person as supplier_contact,
-       s.phone as supplier_phone,
-       s.email as supplier_email,
-       p.created_at,
-       p.updated_at,
-       jsonb_object_agg(
-           ptc.code,
-           jsonb_build_object(
-               'name', ptc.name,
-               'type', ptc.type,
-               'value', pcv.value
-           )
-       ) FILTER (WHERE ptc.id IS NOT NULL) as characteristics
-   FROM products.products p
-   LEFT JOIN products.product_types pt ON p.product_type_id = pt.id
-   LEFT JOIN products.models m ON p.model_id = m.id
-   LEFT JOIN products.manufacturers man ON m.manufacturer_id = man.id
-   LEFT JOIN products.suppliers s ON p.supplier_id = s.id
-   LEFT JOIN products.product_type_characteristics ptc ON pt.id = ptc.product_type_id
-   LEFT JOIN products.product_characteristic_values pcv ON p.id = pcv.product_id AND ptc.id = pcv.characteristic_id
-   GROUP BY 
-       p.id, pt.id, m.id, man.id, s.id;
+  DROP VIEW IF EXISTS products.view_products_full;
+CREATE VIEW products.view_products_full AS
+SELECT 
+    p.id,
+    p.sku,
+    p.current_status,
+    p.current_object_id,
+    p.is_active,
+    pt.name as product_type_name,
+    pt.code as product_type_code,
+    m.name as model_name,
+    m.description as model_description,
+    m.image_url as model_image,
+    m.product_type_id as model_product_type_id,  -- додано поле
+    man.name as manufacturer_name,
+    s.name as supplier_name,
+    s.contact_person as supplier_contact,
+    s.phone as supplier_phone,
+    s.email as supplier_email,
+    p.created_at,
+    p.updated_at,
+    jsonb_object_agg(
+        ptc.code,
+        jsonb_build_object(
+            'name', ptc.name,
+            'type', ptc.type,
+            'value', pcv.value
+        )
+    ) FILTER (WHERE ptc.id IS NOT NULL) as characteristics
+FROM products.products p
+LEFT JOIN products.product_types pt ON p.product_type_id = pt.id
+LEFT JOIN products.models m ON p.model_id = m.id
+LEFT JOIN products.manufacturers man ON m.manufacturer_id = man.id
+LEFT JOIN products.suppliers s ON p.supplier_id = s.id
+LEFT JOIN products.product_type_characteristics ptc ON pt.id = ptc.product_type_id
+LEFT JOIN products.product_characteristic_values pcv ON p.id = pcv.product_id AND ptc.id = pcv.characteristic_id
+GROUP BY p.id, pt.id, m.id, man.id, s.id;
 
    COMMENT ON VIEW products.view_products_full IS 'Full product information with related data and characteristics';
 

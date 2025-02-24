@@ -324,5 +324,14 @@ BEGIN
            FOR EACH ROW
            EXECUTE FUNCTION audit.log_table_change();
    END IF;
+   -- Add index for models product type
+IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes 
+    WHERE schemaname = 'products' 
+    AND tablename = 'models' 
+    AND indexname = 'idx_models_product_type'
+) THEN
+    CREATE INDEX idx_models_product_type ON products.models(product_type_id);
+END IF;
 END;
 $$;
