@@ -1,3 +1,5 @@
+CREATE SCHEMA IF NOT EXISTS products;
+
 DO $$
 BEGIN
     -- 1. First create basic tables without foreign keys
@@ -22,74 +24,74 @@ BEGIN
     END IF;
 
     -- Таблиця типів характеристик
-IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'products' AND table_name = 'characteristic_types'
-) THEN
-    CREATE TABLE products.characteristic_types (
-        value VARCHAR(20) PRIMARY KEY,
-        label VARCHAR(50) NOT NULL,
-        description TEXT,
-        validation JSONB,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    -- Додаємо базові типи
-    INSERT INTO products.characteristic_types (value, label, description, validation) VALUES
-    ('string', 'Text', 'Text values', '{"maxLength": 255}'),
-    ('number', 'Number', 'Numeric values', '{"min": 0, "max": 999999}'),
-    ('date', 'Date', 'Date values', '{"min": "1900-01-01", "max": "2100-12-31"}'),
-    ('boolean', 'Boolean', 'Yes/No values', '{"values": [true, false]}'),
-    ('select', 'Select', 'Selection from predefined options', '{"minOptions": 1, "maxOptions": 50}');
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'products' AND table_name = 'characteristic_types'
+    ) THEN
+        CREATE TABLE products.characteristic_types (
+            value VARCHAR(20) PRIMARY KEY,
+            label VARCHAR(50) NOT NULL,
+            description TEXT,
+            validation JSONB,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        -- Додаємо базові типи
+        INSERT INTO products.characteristic_types (value, label, description, validation) VALUES
+        ('string', 'Text', 'Text values', '{"maxLength": 255}'),
+        ('number', 'Number', 'Numeric values', '{"min": 0, "max": 999999}'),
+        ('date', 'Date', 'Date values', '{"min": "1900-01-01", "max": "2100-12-31"}'),
+        ('boolean', 'Boolean', 'Yes/No values', '{"values": [true, false]}'),
+        ('select', 'Select', 'Selection from predefined options', '{"minOptions": 1, "maxOptions": 50}');
 
-    COMMENT ON TABLE products.characteristic_types IS 'Available characteristic types with validation rules';
-    RAISE NOTICE 'Characteristic types table created and populated';
-END IF;
+        COMMENT ON TABLE products.characteristic_types IS 'Available characteristic types with validation rules';
+        RAISE NOTICE 'Characteristic types table created and populated';
+    END IF;
 
--- Після цього модифікуємо таблицю product_type_characteristics
-IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'products' AND table_name = 'product_type_characteristics'
-) THEN
-    CREATE TABLE products.product_type_characteristics (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        product_type_id UUID NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        code VARCHAR(50) NOT NULL,
-        type VARCHAR(50) NOT NULL,
-        is_required BOOLEAN DEFAULT false,
-        default_value TEXT,
-        validation_rules JSONB,
-        options JSONB,
-        ordering INTEGER DEFAULT 0,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(product_type_id, code),
-        FOREIGN KEY (type) REFERENCES products.characteristic_types(value)
-    );
-    
-    COMMENT ON TABLE products.product_type_characteristics IS 'Product type characteristics definition';
-    RAISE NOTICE 'Product type characteristics table created';
-END IF;
+    -- Після цього модифікуємо таблицю product_type_characteristics
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'products' AND table_name = 'product_type_characteristics'
+    ) THEN
+        CREATE TABLE products.product_type_characteristics (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            product_type_id UUID NOT NULL,
+            name VARCHAR(255) NOT NULL,
+            code VARCHAR(50) NOT NULL,
+            type VARCHAR(50) NOT NULL,
+            is_required BOOLEAN DEFAULT false,
+            default_value TEXT,
+            validation_rules JSONB,
+            options JSONB,
+            ordering INTEGER DEFAULT 0,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(product_type_id, code),
+            FOREIGN KEY (type) REFERENCES products.characteristic_types(value)
+        );
+        
+        COMMENT ON TABLE products.product_type_characteristics IS 'Product type characteristics definition';
+        RAISE NOTICE 'Product type characteristics table created';
+    END IF;
 
--- Таблиця кодів типів продуктів
-IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'products' AND table_name = 'product_type_codes'
-) THEN
-    CREATE TABLE products.product_type_codes (
-        value VARCHAR(10) PRIMARY KEY,
-        label VARCHAR(100) NOT NULL,
-        description TEXT,
-        is_active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
+    -- Таблиця кодів типів продуктів
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'products' AND table_name = 'product_type_codes'
+    ) THEN
+        CREATE TABLE products.product_type_codes (
+            value VARCHAR(10) PRIMARY KEY,
+            label VARCHAR(100) NOT NULL,
+            description TEXT,
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
 
-    COMMENT ON TABLE products.product_type_codes IS 'Product type codes catalog';
-    RAISE NOTICE 'Product type codes table created';
-END IF;
+        COMMENT ON TABLE products.product_type_codes IS 'Product type codes catalog';
+        RAISE NOTICE 'Product type codes table created';
+    END IF;
 
     -- Manufacturers table
     IF NOT EXISTS (
@@ -134,25 +136,25 @@ END IF;
     -- 2. Create tables that depend on manufacturers
     
     -- Models table
-IF NOT EXISTS (
-    SELECT 1 FROM information_schema.tables 
-    WHERE table_schema = 'products' AND table_name = 'models'
-) THEN
-    CREATE TABLE products.models (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        manufacturer_id UUID NOT NULL,
-        product_type_id UUID NOT NULL,  -- додано нове поле
-        image_url TEXT,
-        is_active BOOLEAN DEFAULT true,
-        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-    
-    COMMENT ON TABLE products.models IS 'Product models catalog';
-    RAISE NOTICE 'Models table created';
-END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'products' AND table_name = 'models'
+    ) THEN
+        CREATE TABLE products.models (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name VARCHAR(255) NOT NULL,
+            description TEXT,
+            manufacturer_id UUID NOT NULL,
+            product_type_id UUID NOT NULL,
+            image_url TEXT,
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        COMMENT ON TABLE products.models IS 'Product models catalog';
+        RAISE NOTICE 'Models table created';
+    END IF;
 
     -- Add foreign key for models
     PERFORM core.add_constraint_if_not_exists(
@@ -160,14 +162,15 @@ END IF;
         'fk_models_manufacturer',
         'FOREIGN KEY (manufacturer_id) REFERENCES products.manufacturers(id)'
     );
-    -- Add foreign key for product type
-PERFORM core.add_constraint_if_not_exists(
-    'products.models',
-    'fk_models_product_type',
-    'FOREIGN KEY (product_type_id) REFERENCES products.product_types(id)'
-);
 
-    -- 3. Create products table that depends on models, suppliers, and product_types
+    -- Add foreign key for product type
+    PERFORM core.add_constraint_if_not_exists(
+        'products.models',
+        'fk_models_product_type',
+        'FOREIGN KEY (product_type_id) REFERENCES products.product_types(id)'
+    );
+
+    -- 3. Create products table that depends on models and suppliers
     
     -- Products table
     IF NOT EXISTS (
@@ -205,50 +208,45 @@ PERFORM core.add_constraint_if_not_exists(
         'FOREIGN KEY (supplier_id) REFERENCES products.suppliers(id)'
     );
 
-
     -- Status constraint for products
     PERFORM core.add_constraint_if_not_exists(
         'products.products',
         'chk_products_status',
         'CHECK (current_status IN (''in_stock'', ''installed'', ''in_repair'', ''written_off''))'
     );
--- Create function and trigger to check product type matches model type
-IF NOT EXISTS (
-    SELECT 1 FROM pg_proc 
-    WHERE proname = 'check_product_type_match' 
-    AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'products')
-) THEN
-  CREATE FUNCTION products.check_product_type_match()
-RETURNS TRIGGER AS $$
-DECLARE
-    model_type_id UUID;
-BEGIN
-    SELECT product_type_id INTO model_type_id
-    FROM products.models 
-    WHERE id = NEW.model_id;
-    
-    IF model_type_id IS NULL THEN
-        RAISE EXCEPTION 'Model not found';
+
+    -- Create function and trigger to check product model exists
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc 
+        WHERE proname = 'check_product_type_match' 
+        AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'products')
+    ) THEN
+        CREATE OR REPLACE FUNCTION products.check_product_type_match()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 
+                FROM products.models 
+                WHERE id = NEW.model_id
+            ) THEN
+                RAISE EXCEPTION 'Model not found';
+            END IF;
+            
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+
+        DROP TRIGGER IF EXISTS check_product_type_match_trigger ON products.products;
+        
+        CREATE TRIGGER check_product_type_match_trigger
+            BEFORE INSERT OR UPDATE ON products.products
+            FOR EACH ROW
+            EXECUTE FUNCTION products.check_product_type_match();
+
+        RAISE NOTICE 'Product model check trigger created';
     END IF;
-    
-    -- Set the product type from the model
-    NEW.product_type_id := model_type_id;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
 
-    DROP TRIGGER IF EXISTS check_product_type_match_trigger ON products.products;
-    
-    CREATE TRIGGER check_product_type_match_trigger
-        BEFORE INSERT OR UPDATE ON products.products
-        FOR EACH ROW
-        EXECUTE FUNCTION products.check_product_type_match();
-
-    RAISE NOTICE 'Product type match check trigger created';
-END IF;
-
-
-    -- 5. Create characteristic values table that depends on products and characteristics
+    -- 4. Create characteristic values table that depends on products and characteristics
     
     -- Product characteristic values table
     IF NOT EXISTS (
