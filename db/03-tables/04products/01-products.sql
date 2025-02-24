@@ -47,7 +47,7 @@ BEGIN
         RAISE NOTICE 'Characteristic types table created and populated';
     END IF;
 
-    -- Після цього модифікуємо таблицю product_type_characteristics
+    -- Product type characteristics table
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.tables 
         WHERE table_schema = 'products' AND table_name = 'product_type_characteristics'
@@ -73,7 +73,7 @@ BEGIN
         RAISE NOTICE 'Product type characteristics table created';
     END IF;
 
-    -- Таблиця кодів типів продуктів
+    -- Product type codes table
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.tables 
         WHERE table_schema = 'products' AND table_name = 'product_type_codes'
@@ -131,8 +131,6 @@ BEGIN
         RAISE NOTICE 'Suppliers table created';
     END IF;
 
-    -- 2. Create tables that depend on manufacturers
-    
     -- Models table
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.tables 
@@ -154,22 +152,19 @@ BEGIN
         RAISE NOTICE 'Models table created';
     END IF;
 
-    -- Add foreign key for models
+    -- Add foreign keys for models
     PERFORM core.add_constraint_if_not_exists(
         'products.models',
         'fk_models_manufacturer',
         'FOREIGN KEY (manufacturer_id) REFERENCES products.manufacturers(id)'
     );
 
-    -- Add foreign key for product type
     PERFORM core.add_constraint_if_not_exists(
         'products.models',
         'fk_models_product_type',
         'FOREIGN KEY (product_type_id) REFERENCES products.product_types(id)'
     );
 
-    -- 3. Create products table that depends on models and suppliers
-    
     -- Products table
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.tables 
@@ -213,23 +208,18 @@ BEGIN
         'CHECK (current_status IN (''in_stock'', ''installed'', ''in_repair'', ''written_off''))'
     );
 
-    -- Create function and trigger to check product model exists
+    -- Create trigger function
     IF NOT EXISTS (
         SELECT 1 FROM pg_proc 
         WHERE proname = 'check_product_type_match' 
         AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'products')
     ) THEN
-        CREATE OR REPLACE FUNCTION products.check_product_type_match()
+        CREATE FUNCTION products.check_product_type_match()
         RETURNS TRIGGER AS $$
         BEGIN
-            IF NOT EXISTS (
-                SELECT 1 
-                FROM products.models 
-                WHERE id = NEW.model_id
-            ) THEN
+            IF NOT EXISTS (SELECT 1 FROM products.models WHERE id = NEW.model_id) THEN
                 RAISE EXCEPTION 'Model not found';
             END IF;
-            
             RETURN NEW;
         END;
         $$ LANGUAGE plpgsql;
@@ -244,8 +234,6 @@ BEGIN
         RAISE NOTICE 'Product model check trigger created';
     END IF;
 
-    -- 4. Create characteristic values table that depends on products and characteristics
-    
     -- Product characteristic values table
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.tables 
@@ -265,13 +253,7 @@ BEGIN
         RAISE NOTICE 'Product characteristic values table created';
     END IF;
 
-    -- Add remaining foreign key constraints
-    PERFORM core.add_constraint_if_not_exists(
-        'products.product_type_characteristics',
-        'fk_characteristic_product_type',
-        'FOREIGN KEY (product_type_id) REFERENCES products.product_types(id)'
-    );
-
+    -- Add foreign key constraints for characteristic values
     PERFORM core.add_constraint_if_not_exists(
         'products.product_characteristic_values',
         'fk_value_product',
