@@ -216,22 +216,32 @@ PERFORM core.add_constraint_if_not_exists(
 IF NOT EXISTS (
     SELECT 1 FROM pg_proc 
     WHERE proname = 'check_product_type_match' 
-    AND pronamespace = 'products'::regnamespace
+    AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'products')
 ) THEN
-    CREATE OR REPLACE FUNCTION products.check_product_type_match()
+    CREATE FUNCTION products.check_product_type_match()
     RETURNS TRIGGER AS $$
     BEGIN
-        IF NEW.product_type_id != (
-            SELECT product_type_id 
+        -- Get the product type from the model
+        DECLARE
+            model_type_id UUID;
+        BEGIN
+            SELECT product_type_id INTO model_type_id
             FROM products.models 
-            WHERE id = NEW.model_id
-        ) THEN
-            RAISE EXCEPTION 'Product type must match model product type';
-        END IF;
-        RETURN NEW;
+            WHERE id = NEW.model_id;
+            
+            IF model_type_id IS NULL THEN
+                RAISE EXCEPTION 'Model not found';
+            END IF;
+            
+            -- Set the product type from the model
+            NEW.product_type_id := model_type_id;
+            RETURN NEW;
+        END;
     END;
     $$ LANGUAGE plpgsql;
 
+    DROP TRIGGER IF EXISTS check_product_type_match_trigger ON products.products;
+    
     CREATE TRIGGER check_product_type_match_trigger
         BEFORE INSERT OR UPDATE ON products.products
         FOR EACH ROW
@@ -239,7 +249,6 @@ IF NOT EXISTS (
 
     RAISE NOTICE 'Product type match check trigger created';
 END IF;
-
     -- 4. Create characteristics tables that depend on product_types
     
     -- Product type characteristics table
