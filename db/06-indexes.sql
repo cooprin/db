@@ -123,15 +123,6 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_indexes 
         WHERE schemaname = 'products' 
-        AND tablename = 'products' 
-        AND indexname = 'idx_products_type'
-    ) THEN
-        CREATE INDEX idx_products_type ON products.products(product_type_id);
-    END IF;
-
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_indexes 
-        WHERE schemaname = 'products' 
         AND tablename = 'models' 
         AND indexname = 'idx_models_manufacturer'
     ) THEN
