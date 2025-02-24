@@ -208,34 +208,6 @@ BEGIN
         'CHECK (current_status IN (''in_stock'', ''installed'', ''in_repair'', ''written_off''))'
     );
 
-    -- Create trigger function
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_proc 
-        WHERE proname = 'check_product_type_match' 
-        AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'products')
-    ) THEN
-        CREATE OR REPLACE FUNCTION products.check_product_type_match()
-        RETURNS TRIGGER 
-        LANGUAGE plpgsql
-        AS $function$
-        BEGIN
-            IF NOT EXISTS (SELECT 1 FROM products.models WHERE id = NEW.model_id) THEN
-                RAISE EXCEPTION 'Модель не знайдено';
-            END IF;
-            RETURN NEW;
-        END;
-        $function$;
-
-        DROP TRIGGER IF EXISTS check_product_type_match_trigger ON products.products;
-        
-        CREATE TRIGGER check_product_type_match_trigger
-            BEFORE INSERT OR UPDATE ON products.products
-            FOR EACH ROW
-            EXECUTE FUNCTION products.check_product_type_match();
-
-        RAISE NOTICE 'Тригер перевірки моделі продукту створено';
-    END IF;
-
     -- Product characteristic values table
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.tables 

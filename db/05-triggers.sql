@@ -303,6 +303,7 @@ BEGIN
            FOR EACH ROW
            EXECUTE FUNCTION audit.log_table_change();
    END IF;
+
    -- Characteristic types table
    IF NOT EXISTS (
        SELECT 1 FROM pg_trigger 
@@ -324,14 +325,45 @@ BEGIN
            FOR EACH ROW
            EXECUTE FUNCTION audit.log_table_change();
    END IF;
+
+   -- Тригерна функція для перевірки моделі продукту
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_proc 
+       WHERE proname = 'check_product_type_match' 
+       AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'products')
+   ) THEN
+       CREATE OR REPLACE FUNCTION products.check_product_type_match()
+       RETURNS TRIGGER 
+       LANGUAGE plpgsql
+       AS $function$
+       BEGIN
+           IF NOT EXISTS (SELECT 1 FROM products.models WHERE id = NEW.model_id) THEN
+               RAISE EXCEPTION 'Модель не знайдено';
+           END IF;
+           RETURN NEW;
+       END;
+       $function$;
+
+       -- Створення тригера для перевірки моделі
+       DROP TRIGGER IF EXISTS check_product_type_match_trigger ON products.products;
+       
+       CREATE TRIGGER check_product_type_match_trigger
+           BEFORE INSERT OR UPDATE ON products.products
+           FOR EACH ROW
+           EXECUTE FUNCTION products.check_product_type_match();
+
+       RAISE NOTICE 'Тригер перевірки моделі продукту створено';
+   END IF;
+
    -- Add index for models product type
-IF NOT EXISTS (
-    SELECT 1 FROM pg_indexes 
-    WHERE schemaname = 'products' 
-    AND tablename = 'models' 
-    AND indexname = 'idx_models_product_type'
-) THEN
-    CREATE INDEX idx_models_product_type ON products.models(product_type_id);
-END IF;
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_indexes 
+       WHERE schemaname = 'products' 
+       AND tablename = 'models' 
+       AND indexname = 'idx_models_product_type'
+   ) THEN
+       CREATE INDEX idx_models_product_type ON products.models(product_type_id);
+   END IF;
+
 END;
 $$;
