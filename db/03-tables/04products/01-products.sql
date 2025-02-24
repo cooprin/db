@@ -1,5 +1,3 @@
-CREATE SCHEMA IF NOT EXISTS products;
-
 DO $$
 BEGIN
     -- 1. First create basic tables without foreign keys
