@@ -218,27 +218,24 @@ IF NOT EXISTS (
     WHERE proname = 'check_product_type_match' 
     AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'products')
 ) THEN
-    CREATE FUNCTION products.check_product_type_match()
-    RETURNS TRIGGER AS $$
-    BEGIN
-        -- Get the product type from the model
-        DECLARE
-            model_type_id UUID;
-        BEGIN
-            SELECT product_type_id INTO model_type_id
-            FROM products.models 
-            WHERE id = NEW.model_id;
-            
-            IF model_type_id IS NULL THEN
-                RAISE EXCEPTION 'Model not found';
-            END IF;
-            
-            -- Set the product type from the model
-            NEW.product_type_id := model_type_id;
-            RETURN NEW;
-        END;
-    END;
-    $$ LANGUAGE plpgsql;
+  CREATE FUNCTION products.check_product_type_match()
+RETURNS TRIGGER AS $$
+DECLARE
+    model_type_id UUID;
+BEGIN
+    SELECT product_type_id INTO model_type_id
+    FROM products.models 
+    WHERE id = NEW.model_id;
+    
+    IF model_type_id IS NULL THEN
+        RAISE EXCEPTION 'Model not found';
+    END IF;
+    
+    -- Set the product type from the model
+    NEW.product_type_id := model_type_id;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
 
     DROP TRIGGER IF EXISTS check_product_type_match_trigger ON products.products;
     
