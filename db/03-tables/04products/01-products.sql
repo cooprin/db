@@ -249,32 +249,7 @@ IF NOT EXISTS (
 
     RAISE NOTICE 'Product type match check trigger created';
 END IF;
-    -- 4. Create characteristics tables that depend on product_types
-    
-    -- Product type characteristics table
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.tables 
-        WHERE table_schema = 'products' AND table_name = 'product_type_characteristics'
-    ) THEN
-        CREATE TABLE products.product_type_characteristics (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            product_type_id UUID NOT NULL,
-            name VARCHAR(255) NOT NULL,
-            code VARCHAR(50) NOT NULL,
-            type VARCHAR(50) NOT NULL,
-            is_required BOOLEAN DEFAULT false,
-            default_value TEXT,
-            validation_rules JSONB,
-            options JSONB,
-            ordering INTEGER DEFAULT 0,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(product_type_id, code)
-        );
-        
-        COMMENT ON TABLE products.product_type_characteristics IS 'Product type characteristics definition';
-        RAISE NOTICE 'Product type characteristics table created';
-    END IF;
+
 
     -- 5. Create characteristic values table that depends on products and characteristics
     
