@@ -99,43 +99,43 @@ BEGIN
    COMMENT ON VIEW audit.view_audit_logs_with_users IS 'Audit logs with user details';
 
    -- Products view with characteristics
-  DROP VIEW IF EXISTS products.view_products_full;
-CREATE VIEW products.view_products_full AS
-SELECT 
-    p.id,
-    p.sku,
-    p.current_status,
-    p.current_object_id,
-    p.is_active,
-    pt.name as product_type_name,
-    pt.code as product_type_code,
-    m.name as model_name,
-    m.description as model_description,
-    m.image_url as model_image,
-    m.product_type_id,
-    man.name as manufacturer_name,
-    s.name as supplier_name,
-    s.contact_person as supplier_contact,
-    s.phone as supplier_phone,
-    s.email as supplier_email,
-    p.created_at,
-    p.updated_at,
-    jsonb_object_agg(
-        ptc.code,
-        jsonb_build_object(
-            'name', ptc.name,
-            'type', ptc.type,
-            'value', pcv.value
-        )
-    ) FILTER (WHERE ptc.id IS NOT NULL) as characteristics
-FROM products.products p
-LEFT JOIN products.product_types pt ON p.product_type_id = pt.id
-LEFT JOIN products.models m ON p.model_id = m.id
-LEFT JOIN products.manufacturers man ON m.manufacturer_id = man.id
-LEFT JOIN products.suppliers s ON p.supplier_id = s.id
-LEFT JOIN products.product_types pt ON m.product_type_id = pt.id
-LEFT JOIN products.product_characteristic_values pcv ON p.id = pcv.product_id AND ptc.id = pcv.characteristic_id
-GROUP BY p.id, pt.id, m.id, man.id, s.id;
+   DROP VIEW IF EXISTS products.view_products_full;
+   CREATE VIEW products.view_products_full AS
+   SELECT 
+       p.id,
+       p.sku,
+       p.current_status,
+       p.current_object_id,
+       p.is_active,
+       pt.name as product_type_name,
+       pt.code as product_type_code,
+       m.name as model_name,
+       m.description as model_description,
+       m.image_url as model_image,
+       m.product_type_id,
+       man.name as manufacturer_name,
+       s.name as supplier_name,
+       s.contact_person as supplier_contact,
+       s.phone as supplier_phone,
+       s.email as supplier_email,
+       p.created_at,
+       p.updated_at,
+       jsonb_object_agg(
+           ptc.code,
+           jsonb_build_object(
+               'name', ptc.name,
+               'type', ptc.type,
+               'value', pcv.value
+           )
+       ) FILTER (WHERE ptc.id IS NOT NULL) as characteristics
+   FROM products.products p
+   JOIN products.models m ON p.model_id = m.id
+   JOIN products.product_types pt ON m.product_type_id = pt.id
+   LEFT JOIN products.manufacturers man ON m.manufacturer_id = man.id
+   LEFT JOIN products.suppliers s ON p.supplier_id = s.id
+   LEFT JOIN products.product_type_characteristics ptc ON pt.id = ptc.product_type_id
+   LEFT JOIN products.product_characteristic_values pcv ON p.id = pcv.product_id AND ptc.id = pcv.characteristic_id
+   GROUP BY p.id, pt.id, m.id, man.id, s.id;
 
    COMMENT ON VIEW products.view_products_full IS 'Full product information with related data and characteristics';
 
@@ -161,12 +161,12 @@ GROUP BY p.id, pt.id, m.id, man.id, s.id;
                'ordering', ptc.ordering
            ) ORDER BY ptc.ordering
        ) FILTER (WHERE ptc.id IS NOT NULL) as characteristics,
-       COUNT(DISTINCT p.id) as products_count,
+       COUNT(DISTINCT m.id) as products_count,
        pt.created_at,
        pt.updated_at
    FROM products.product_types pt
    LEFT JOIN products.product_type_characteristics ptc ON pt.id = ptc.product_type_id
-   LEFT JOIN products.products p ON pt.id = p.product_type_id
+   LEFT JOIN products.models m ON pt.id = m.product_type_id
    GROUP BY pt.id;
 
    COMMENT ON VIEW products.view_product_types_full IS 'Product types with their characteristics and usage statistics';
@@ -195,7 +195,7 @@ GROUP BY p.id, pt.id, m.id, man.id, s.id;
    JOIN products.models m ON p.model_id = m.id
    JOIN products.manufacturers man ON m.manufacturer_id = man.id
    JOIN products.suppliers s ON p.supplier_id = s.id
-   JOIN products.product_types pt ON p.product_type_id = pt.id
+   JOIN products.product_types pt ON m.product_type_id = pt.id
    LEFT JOIN products.product_type_characteristics ptc ON pt.id = ptc.product_type_id
    LEFT JOIN products.product_characteristic_values pcv ON p.id = pcv.product_id AND ptc.id = pcv.characteristic_id
    WHERE p.is_active = true
@@ -205,29 +205,29 @@ GROUP BY p.id, pt.id, m.id, man.id, s.id;
    COMMENT ON VIEW products.view_products_warranty IS 'Products warranty information and status based on characteristics';
 
    -- Stock view
-DROP VIEW IF EXISTS warehouses.view_stock_current;
-CREATE VIEW warehouses.view_stock_current AS
-SELECT 
-    s.warehouse_id,
-    w.name as warehouse_name,
-    s.product_id,
-    p.sku,
-    pt.name as product_type_name,
-    m.name as model_name,
-    man.name as manufacturer_name,
-    p.current_status,
-    p.current_object_id,  -- додано поле
-    s.price,
-    u.email as responsible_person_email,
-    u.first_name || ' ' || u.last_name as responsible_person_name
-FROM warehouses.stock s
-JOIN warehouses.warehouses w ON s.warehouse_id = w.id
-JOIN products.products p ON s.product_id = p.id
-JOIN products.product_types pt ON p.product_type_id = pt.id
-JOIN products.models m ON p.model_id = m.id
-JOIN products.manufacturers man ON m.manufacturer_id = man.id
-LEFT JOIN auth.users u ON w.responsible_person_id = u.id
-WHERE p.current_status = 'in_stock';
+   DROP VIEW IF EXISTS warehouses.view_stock_current;
+   CREATE VIEW warehouses.view_stock_current AS
+   SELECT 
+       s.warehouse_id,
+       w.name as warehouse_name,
+       s.product_id,
+       p.sku,
+       pt.name as product_type_name,
+       m.name as model_name,
+       man.name as manufacturer_name,
+       p.current_status,
+       p.current_object_id,
+       s.price,
+       u.email as responsible_person_email,
+       u.first_name || ' ' || u.last_name as responsible_person_name
+   FROM warehouses.stock s
+   JOIN warehouses.warehouses w ON s.warehouse_id = w.id
+   JOIN products.products p ON s.product_id = p.id
+   JOIN products.models m ON p.model_id = m.id
+   JOIN products.product_types pt ON m.product_type_id = pt.id
+   JOIN products.manufacturers man ON m.manufacturer_id = man.id
+   LEFT JOIN auth.users u ON w.responsible_person_id = u.id
+   WHERE p.current_status = 'in_stock';
 
    COMMENT ON VIEW warehouses.view_stock_current IS 'Current stock in warehouses with product details';
 
@@ -280,13 +280,13 @@ WHERE p.current_status = 'in_stock';
                'ordering', ptc.ordering
            ) ORDER BY ptc.ordering
        ) FILTER (WHERE ptc.id IS NOT NULL) as characteristics,
-       COUNT(DISTINCT p.id) as products_count,
+       COUNT(DISTINCT m.id) as products_count,
        pt.created_at,
        pt.updated_at
    FROM products.product_types pt
    LEFT JOIN products.product_type_characteristics ptc ON pt.id = ptc.product_type_id
    LEFT JOIN products.characteristic_types ct ON ptc.type = ct.value
-   LEFT JOIN products.products p ON pt.id = p.product_type_id
+   LEFT JOIN products.models m ON pt.id = m.product_type_id
    GROUP BY pt.id;
 
    COMMENT ON VIEW warehouses.view_stock_movements IS 'Stock movements history with related details';
