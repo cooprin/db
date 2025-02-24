@@ -112,7 +112,7 @@ SELECT
     m.name as model_name,
     m.description as model_description,
     m.image_url as model_image,
-    m.product_type_id as model_product_type_id,  -- додано поле
+    m.product_type_id,
     man.name as manufacturer_name,
     s.name as supplier_name,
     s.contact_person as supplier_contact,
@@ -133,7 +133,7 @@ LEFT JOIN products.product_types pt ON p.product_type_id = pt.id
 LEFT JOIN products.models m ON p.model_id = m.id
 LEFT JOIN products.manufacturers man ON m.manufacturer_id = man.id
 LEFT JOIN products.suppliers s ON p.supplier_id = s.id
-LEFT JOIN products.product_type_characteristics ptc ON pt.id = ptc.product_type_id
+LEFT JOIN products.product_types pt ON m.product_type_id = pt.id
 LEFT JOIN products.product_characteristic_values pcv ON p.id = pcv.product_id AND ptc.id = pcv.characteristic_id
 GROUP BY p.id, pt.id, m.id, man.id, s.id;
 

@@ -179,7 +179,6 @@ PERFORM core.add_constraint_if_not_exists(
             sku VARCHAR(255) NOT NULL,
             model_id UUID NOT NULL,
             supplier_id UUID NOT NULL,
-            product_type_id UUID NOT NULL,
             current_status VARCHAR(50) DEFAULT 'in_stock',
             current_object_id UUID,
             is_active BOOLEAN DEFAULT true,
@@ -206,11 +205,6 @@ PERFORM core.add_constraint_if_not_exists(
         'FOREIGN KEY (supplier_id) REFERENCES products.suppliers(id)'
     );
 
-    PERFORM core.add_constraint_if_not_exists(
-        'products.products',
-        'fk_products_type',
-        'FOREIGN KEY (product_type_id) REFERENCES products.product_types(id)'
-    );
 
     -- Status constraint for products
     PERFORM core.add_constraint_if_not_exists(
@@ -218,12 +212,33 @@ PERFORM core.add_constraint_if_not_exists(
         'chk_products_status',
         'CHECK (current_status IN (''in_stock'', ''installed'', ''in_repair'', ''written_off''))'
     );
-    -- Check product type matches model type
-PERFORM core.add_constraint_if_not_exists(
-    'products.products',
-    'check_product_type_match',
-    'CHECK (product_type_id = (SELECT product_type_id FROM products.models WHERE id = model_id))'
-);
+-- Create function and trigger to check product type matches model type
+IF NOT EXISTS (
+    SELECT 1 FROM pg_proc 
+    WHERE proname = 'check_product_type_match' 
+    AND pronamespace = 'products'::regnamespace
+) THEN
+    CREATE OR REPLACE FUNCTION products.check_product_type_match()
+    RETURNS TRIGGER AS $$
+    BEGIN
+        IF NEW.product_type_id != (
+            SELECT product_type_id 
+            FROM products.models 
+            WHERE id = NEW.model_id
+        ) THEN
+            RAISE EXCEPTION 'Product type must match model product type';
+        END IF;
+        RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    CREATE TRIGGER check_product_type_match_trigger
+        BEFORE INSERT OR UPDATE ON products.products
+        FOR EACH ROW
+        EXECUTE FUNCTION products.check_product_type_match();
+
+    RAISE NOTICE 'Product type match check trigger created';
+END IF;
 
     -- 4. Create characteristics tables that depend on product_types
     
