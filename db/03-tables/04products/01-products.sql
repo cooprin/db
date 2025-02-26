@@ -170,7 +170,7 @@ BEGIN
             CONSTRAINT fk_model_files_model FOREIGN KEY (model_id) 
                 REFERENCES products.models(id) ON DELETE CASCADE,
             CONSTRAINT fk_model_files_user FOREIGN KEY (uploaded_by) 
-                REFERENCES users.users(id) ON DELETE SET NULL
+                REFERENCES auth.users(id) ON DELETE SET NULL
         );
         
         COMMENT ON TABLE products.model_files IS 'Files attached to product models';
