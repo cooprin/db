@@ -152,6 +152,31 @@ BEGIN
         RAISE NOTICE 'Models table created';
     END IF;
 
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'products' AND table_name = 'model_files'
+    ) THEN
+        CREATE TABLE products.model_files (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            model_id UUID NOT NULL,
+            file_name VARCHAR(255) NOT NULL,
+            file_path VARCHAR(255) NOT NULL,
+            file_size INTEGER NOT NULL,
+            file_type VARCHAR(100) NOT NULL,
+            description TEXT,
+            uploaded_by UUID,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_model_files_model FOREIGN KEY (model_id) 
+                REFERENCES products.models(id) ON DELETE CASCADE,
+            CONSTRAINT fk_model_files_user FOREIGN KEY (uploaded_by) 
+                REFERENCES users.users(id) ON DELETE SET NULL
+        );
+        
+        COMMENT ON TABLE products.model_files IS 'Files attached to product models';
+        RAISE NOTICE 'Model files table created';
+    END IF;
+
     -- Add foreign keys for models
     PERFORM core.add_constraint_if_not_exists(
         'products.models',

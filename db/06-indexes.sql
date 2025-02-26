@@ -129,6 +129,14 @@ BEGIN
         CREATE INDEX idx_models_manufacturer ON products.models(manufacturer_id);
     END IF;
 
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'products' AND tablename = 'model_files' AND indexname = 'idx_model_files_model_id'
+    ) THEN
+        CREATE INDEX idx_model_files_model_id ON products.model_files(model_id);
+        RAISE NOTICE 'Index on model_files(model_id) created';
+    END IF;
+
     -- Product types indexes
     IF NOT EXISTS (
         SELECT 1 FROM pg_indexes 
