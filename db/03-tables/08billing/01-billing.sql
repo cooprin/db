@@ -19,7 +19,7 @@ BEGIN
         RAISE NOTICE 'Tariffs table created';
     END IF;
 
-    -- Object tariffs table
+    -- Object tariffs table - видаляємо зовнішній ключ на wialon.objects
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.tables 
         WHERE table_schema = 'billing' AND table_name = 'object_tariffs'
@@ -32,8 +32,7 @@ BEGIN
             effective_to DATE,
             created_by UUID,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT fk_object_tariffs_object FOREIGN KEY (object_id) 
-                REFERENCES wialon.objects(id) ON DELETE CASCADE,
+            -- Видалено constraint: CONSTRAINT fk_object_tariffs_object FOREIGN KEY (object_id) REFERENCES wialon.objects(id) ON DELETE CASCADE
             CONSTRAINT fk_object_tariffs_tariff FOREIGN KEY (tariff_id) 
                 REFERENCES billing.tariffs(id),
             CONSTRAINT fk_object_tariffs_user FOREIGN KEY (created_by) 
@@ -74,7 +73,7 @@ BEGIN
         RAISE NOTICE 'Payments table created';
     END IF;
 
-    -- Object payment records
+    -- Object payment records - видаляємо зовнішній ключ на wialon.objects
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.tables 
         WHERE table_schema = 'billing' AND table_name = 'object_payment_records'
@@ -89,8 +88,7 @@ BEGIN
             billing_year INTEGER NOT NULL,
             status VARCHAR(50) DEFAULT 'paid',
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT fk_object_payments_object FOREIGN KEY (object_id) 
-                REFERENCES wialon.objects(id) ON DELETE CASCADE,
+            -- Видалено constraint: CONSTRAINT fk_object_payments_object FOREIGN KEY (object_id) REFERENCES wialon.objects(id) ON DELETE CASCADE
             CONSTRAINT fk_object_payments_payment FOREIGN KEY (payment_id) 
                 REFERENCES billing.payments(id) ON DELETE CASCADE,
             CONSTRAINT fk_object_payments_tariff FOREIGN KEY (tariff_id) 
