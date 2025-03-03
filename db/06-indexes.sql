@@ -240,6 +240,209 @@ END IF;
         CREATE INDEX idx_characteristic_types_value ON products.characteristic_types(value);
     END IF;
 
+    -- Clients schema indexes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'clients' 
+        AND tablename = 'clients' 
+        AND indexname = 'idx_clients_name'
+    ) THEN
+        CREATE INDEX idx_clients_name ON clients.clients(name);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'clients' 
+        AND tablename = 'clients' 
+        AND indexname = 'idx_clients_wialon_id'
+    ) THEN
+        CREATE INDEX idx_clients_wialon_id ON clients.clients(wialon_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'clients' 
+        AND tablename = 'clients' 
+        AND indexname = 'idx_clients_wialon_username'
+    ) THEN
+        CREATE INDEX idx_clients_wialon_username ON clients.clients(wialon_username);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'clients' 
+        AND tablename = 'client_documents' 
+        AND indexname = 'idx_client_documents_client'
+    ) THEN
+        CREATE INDEX idx_client_documents_client ON clients.client_documents(client_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'clients' 
+        AND tablename = 'contacts' 
+        AND indexname = 'idx_contacts_client'
+    ) THEN
+        CREATE INDEX idx_contacts_client ON clients.contacts(client_id);
+    END IF;
+
+    -- Wialon schema indexes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'wialon' 
+        AND tablename = 'objects' 
+        AND indexname = 'idx_wialon_objects_client'
+    ) THEN
+        CREATE INDEX idx_wialon_objects_client ON wialon.objects(client_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'wialon' 
+        AND tablename = 'objects' 
+        AND indexname = 'idx_wialon_objects_status'
+    ) THEN
+        CREATE INDEX idx_wialon_objects_status ON wialon.objects(status);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'wialon' 
+        AND tablename = 'object_ownership_history' 
+        AND indexname = 'idx_ownership_history_object'
+    ) THEN
+        CREATE INDEX idx_ownership_history_object ON wialon.object_ownership_history(object_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'wialon' 
+        AND tablename = 'object_ownership_history' 
+        AND indexname = 'idx_ownership_history_client'
+    ) THEN
+        CREATE INDEX idx_ownership_history_client ON wialon.object_ownership_history(client_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'wialon' 
+        AND tablename = 'object_ownership_history' 
+        AND indexname = 'idx_ownership_history_dates'
+    ) THEN
+        CREATE INDEX idx_ownership_history_dates ON wialon.object_ownership_history(start_date, end_date);
+    END IF;
+
+    -- Billing schema indexes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'billing' 
+        AND tablename = 'object_tariffs' 
+        AND indexname = 'idx_object_tariffs_object'
+    ) THEN
+        CREATE INDEX idx_object_tariffs_object ON billing.object_tariffs(object_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'billing' 
+        AND tablename = 'object_tariffs' 
+        AND indexname = 'idx_object_tariffs_dates'
+    ) THEN
+        CREATE INDEX idx_object_tariffs_dates ON billing.object_tariffs(effective_from, effective_to);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'billing' 
+        AND tablename = 'payments' 
+        AND indexname = 'idx_payments_client'
+    ) THEN
+        CREATE INDEX idx_payments_client ON billing.payments(client_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'billing' 
+        AND tablename = 'payments' 
+        AND indexname = 'idx_payments_period'
+    ) THEN
+        CREATE INDEX idx_payments_period ON billing.payments(payment_year, payment_month);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'billing' 
+        AND tablename = 'object_payment_records' 
+        AND indexname = 'idx_object_payments_payment'
+    ) THEN
+        CREATE INDEX idx_object_payments_payment ON billing.object_payment_records(payment_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'billing' 
+        AND tablename = 'object_payment_records' 
+        AND indexname = 'idx_object_payments_object'
+    ) THEN
+        CREATE INDEX idx_object_payments_object ON billing.object_payment_records(object_id);
+    END IF;
+
+    -- Services schema indexes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'services' 
+        AND tablename = 'client_services' 
+        AND indexname = 'idx_client_services_client'
+    ) THEN
+        CREATE INDEX idx_client_services_client ON services.client_services(client_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'services' 
+        AND tablename = 'client_services' 
+        AND indexname = 'idx_client_services_service'
+    ) THEN
+        CREATE INDEX idx_client_services_service ON services.client_services(service_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'services' 
+        AND tablename = 'client_services' 
+        AND indexname = 'idx_client_services_dates'
+    ) THEN
+        CREATE INDEX idx_client_services_dates ON services.client_services(start_date, end_date);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'services' 
+        AND tablename = 'invoices' 
+        AND indexname = 'idx_invoices_client'
+    ) THEN
+        CREATE INDEX idx_invoices_client ON services.invoices(client_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'services' 
+        AND tablename = 'invoices' 
+        AND indexname = 'idx_invoices_period'
+    ) THEN
+        CREATE INDEX idx_invoices_period ON services.invoices(billing_year, billing_month);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'services' 
+        AND tablename = 'invoice_items' 
+        AND indexname = 'idx_invoice_items_invoice'
+    ) THEN
+        CREATE INDEX idx_invoice_items_invoice ON services.invoice_items(invoice_id);
+    END IF;
+
+
     -- Grant privileges
     -- Auth schema
     GRANT USAGE ON SCHEMA auth TO current_user;
@@ -265,4 +468,24 @@ END IF;
     GRANT USAGE ON SCHEMA warehouses TO current_user;
     GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA warehouses TO current_user;
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA warehouses TO current_user;
+
+     -- Clients schema
+    GRANT USAGE ON SCHEMA clients TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA clients TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA clients TO current_user;
+
+    -- Wialon schema
+    GRANT USAGE ON SCHEMA wialon TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA wialon TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA wialon TO current_user;
+
+    -- Billing schema
+    GRANT USAGE ON SCHEMA billing TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA billing TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA billing TO current_user;
+
+    -- Services schema
+    GRANT USAGE ON SCHEMA services TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA services TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA services TO current_user;
 END $$;

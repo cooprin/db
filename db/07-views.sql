@@ -291,4 +291,253 @@ BEGIN
 
    COMMENT ON VIEW warehouses.view_stock_movements IS 'Stock movements history with related details';
 
+      -- Clients with details view
+   DROP VIEW IF EXISTS clients.view_clients_full;
+   CREATE VIEW clients.view_clients_full AS
+   SELECT 
+       c.id,
+       c.name,
+       c.full_name,
+       c.address,
+       c.contact_person,
+       c.phone,
+       c.email,
+       c.wialon_id,
+       c.wialon_username,
+       c.is_active,
+       COUNT(DISTINCT o.id) as objects_count,
+       COUNT(DISTINCT cd.id) as documents_count,
+       array_agg(DISTINCT cont.first_name || ' ' || coalesce(cont.last_name, '') || ' (' || coalesce(cont.position, '') || ')') FILTER (WHERE cont.id IS NOT NULL) as contacts,
+       c.created_at,
+       c.updated_at
+   FROM clients.clients c
+   LEFT JOIN wialon.objects o ON c.id = o.client_id
+   LEFT JOIN clients.client_documents cd ON c.id = cd.client_id
+   LEFT JOIN clients.contacts cont ON c.id = cont.client_id
+   GROUP BY c.id;
+
+   COMMENT ON VIEW clients.view_clients_full IS 'Detailed client information with counts of related entities';
+
+   -- Wialon objects view
+   DROP VIEW IF EXISTS wialon.view_objects_full;
+   CREATE VIEW wialon.view_objects_full AS
+   SELECT 
+       o.id,
+       o.wialon_id,
+       o.name,
+       o.description,
+       o.status,
+       c.id as client_id,
+       c.name as client_name,
+       c.wialon_username as client_wialon_username,
+       t.id as current_tariff_id,
+       t.name as current_tariff_name,
+       t.price as current_tariff_price,
+       ot.effective_from as tariff_effective_from,
+       jsonb_object_agg(
+           oa.attribute_name, 
+           oa.attribute_value
+       ) FILTER (WHERE oa.id IS NOT NULL) as attributes,
+       o.created_at,
+       o.updated_at
+   FROM wialon.objects o
+   JOIN clients.clients c ON o.client_id = c.id
+   LEFT JOIN billing.object_tariffs ot ON o.id = ot.object_id AND ot.effective_to IS NULL
+   LEFT JOIN billing.tariffs t ON ot.tariff_id = t.id
+   LEFT JOIN wialon.object_attributes oa ON o.id = oa.object_id
+   GROUP BY o.id, c.id, t.id, ot.effective_from;
+
+   COMMENT ON VIEW wialon.view_objects_full IS 'Detailed Wialon object information with client and tariff data';
+
+   -- Object ownership history view
+   DROP VIEW IF EXISTS wialon.view_object_ownership_history;
+   CREATE VIEW wialon.view_object_ownership_history AS
+   SELECT 
+       ooh.id,
+       o.id as object_id,
+       o.name as object_name,
+       o.wialon_id,
+       c.id as client_id,
+       c.name as client_name,
+       ooh.start_date,
+       ooh.end_date,
+       CASE 
+           WHEN ooh.end_date IS NULL THEN 'Current'
+           ELSE 'Historical'
+       END as status,
+       u.email as created_by_email,
+       ooh.created_at
+   FROM wialon.object_ownership_history ooh
+   JOIN wialon.objects o ON ooh.object_id = o.id
+   JOIN clients.clients c ON ooh.client_id = c.id
+   LEFT JOIN auth.users u ON ooh.created_by = u.id
+   ORDER BY o.name, ooh.start_date DESC;
+
+   COMMENT ON VIEW wialon.view_object_ownership_history IS 'Object ownership history with object and client details';
+
+   -- Active object tariffs view
+   DROP VIEW IF EXISTS billing.view_active_object_tariffs;
+   CREATE VIEW billing.view_active_object_tariffs AS
+   SELECT 
+       ot.id,
+       o.id as object_id,
+       o.name as object_name,
+       o.wialon_id,
+       c.id as client_id,
+       c.name as client_name,
+       t.id as tariff_id,
+       t.name as tariff_name,
+       t.price,
+       ot.effective_from,
+       ot.effective_to,
+       u.email as created_by_email,
+       ot.created_at
+   FROM billing.object_tariffs ot
+   JOIN wialon.objects o ON ot.object_id = o.id
+   JOIN clients.clients c ON o.client_id = c.id
+   JOIN billing.tariffs t ON ot.tariff_id = t.id
+   LEFT JOIN auth.users u ON ot.created_by = u.id
+   WHERE (ot.effective_to IS NULL OR ot.effective_to >= CURRENT_DATE)
+   AND ot.effective_from <= CURRENT_DATE
+   ORDER BY c.name, o.name;
+
+   COMMENT ON VIEW billing.view_active_object_tariffs IS 'Current active tariffs for objects';
+
+   -- Payment history view
+   DROP VIEW IF EXISTS billing.view_payment_history;
+   CREATE VIEW billing.view_payment_history AS
+   SELECT 
+       p.id,
+       c.id as client_id,
+       c.name as client_name,
+       p.amount,
+       p.payment_date,
+       p.payment_month,
+       p.payment_year,
+       to_char(to_date(p.payment_month::text, 'MM'), 'Month') || ' ' || p.payment_year::text as payment_period,
+       p.payment_type,
+       p.notes,
+       COUNT(opr.id) as objects_count,
+       u.email as created_by_email,
+       p.created_at
+   FROM billing.payments p
+   JOIN clients.clients c ON p.client_id = c.id
+   LEFT JOIN billing.object_payment_records opr ON p.id = opr.payment_id
+   LEFT JOIN auth.users u ON p.created_by = u.id
+   GROUP BY p.id, c.id, u.email
+   ORDER BY p.payment_year DESC, p.payment_month DESC, c.name;
+
+   COMMENT ON VIEW billing.view_payment_history IS 'Client payment history with details';
+
+   -- Monthly billing report view
+   DROP VIEW IF EXISTS billing.view_monthly_billing;
+   CREATE VIEW billing.view_monthly_billing AS
+   WITH current_month AS (
+       SELECT 
+           EXTRACT(MONTH FROM CURRENT_DATE) as month,
+           EXTRACT(YEAR FROM CURRENT_DATE) as year
+   )
+   SELECT 
+       c.id as client_id,
+       c.name as client_name,
+       o.id as object_id,
+       o.name as object_name,
+       o.wialon_id,
+       t.id as tariff_id,
+       t.name as tariff_name,
+       t.price as monthly_price,
+       cm.month as billing_month,
+       cm.year as billing_year,
+       to_char(to_date(cm.month::text, 'MM'), 'Month') || ' ' || cm.year::text as billing_period,
+       CASE 
+           WHEN opr.id IS NOT NULL THEN 'Paid'
+           ELSE 'Unpaid'
+       END as payment_status,
+       opr.payment_id
+   FROM wialon.objects o
+   JOIN clients.clients c ON o.client_id = c.id
+   JOIN billing.object_tariffs ot ON o.id = ot.object_id
+   JOIN billing.tariffs t ON ot.tariff_id = t.id
+   CROSS JOIN current_month cm
+   LEFT JOIN billing.object_payment_records opr ON o.id = opr.object_id 
+       AND opr.billing_month = cm.month 
+       AND opr.billing_year = cm.year
+   WHERE o.status = 'active'
+   AND ot.effective_from <= (cm.year || '-' || cm.month || '-01')::date
+   AND (ot.effective_to IS NULL OR ot.effective_to >= (cm.year || '-' || cm.month || '-01')::date)
+   ORDER BY c.name, o.name;
+
+   COMMENT ON VIEW billing.view_monthly_billing IS 'Current month billing information for all active objects';
+
+   -- Client services view
+   DROP VIEW IF EXISTS services.view_client_services;
+   CREATE VIEW services.view_client_services AS
+   SELECT 
+       cs.id,
+       c.id as client_id,
+       c.name as client_name,
+       s.id as service_id,
+       s.name as service_name,
+       s.service_type,
+       s.fixed_price,
+       cs.start_date,
+       cs.end_date,
+       cs.status,
+       cs.notes,
+       CASE 
+           WHEN s.service_type = 'fixed' THEN s.fixed_price
+           WHEN s.service_type = 'object_based' THEN (
+               SELECT COALESCE(SUM(t.price), 0)
+               FROM wialon.objects o
+               JOIN billing.object_tariffs ot ON o.id = ot.object_id
+               JOIN billing.tariffs t ON ot.tariff_id = t.id
+               WHERE o.client_id = c.id
+               AND o.status = 'active'
+               AND ot.effective_to IS NULL
+           )
+           ELSE 0
+       END as calculated_price,
+       cs.created_at,
+       cs.updated_at
+   FROM services.client_services cs
+   JOIN clients.clients c ON cs.client_id = c.id
+   JOIN services.services s ON cs.service_id = s.id
+   WHERE cs.status = 'active'
+   AND (cs.end_date IS NULL OR cs.end_date >= CURRENT_DATE)
+   ORDER BY c.name, s.name;
+
+   COMMENT ON VIEW services.view_client_services IS 'Active client services with calculated prices';
+
+   -- Client invoices view
+   DROP VIEW IF EXISTS services.view_client_invoices;
+   CREATE VIEW services.view_client_invoices AS
+   SELECT 
+       i.id,
+       c.id as client_id,
+       c.name as client_name,
+       i.invoice_number,
+       i.invoice_date,
+       i.billing_month,
+       i.billing_year,
+       to_char(to_date(i.billing_month::text, 'MM'), 'Month') || ' ' || i.billing_year::text as billing_period,
+       i.total_amount,
+       i.status,
+       COUNT(ii.id) as items_count,
+       COUNT(id.id) as documents_count,
+       p.id as payment_id,
+       p.payment_date,
+       u.email as created_by_email,
+       i.created_at,
+       i.updated_at
+   FROM services.invoices i
+   JOIN clients.clients c ON i.client_id = c.id
+   LEFT JOIN services.invoice_items ii ON i.id = ii.invoice_id
+   LEFT JOIN services.invoice_documents id ON i.id = id.invoice_id
+   LEFT JOIN billing.payments p ON i.payment_id = p.id
+   LEFT JOIN auth.users u ON i.created_by = u.id
+   GROUP BY i.id, c.id, p.id, u.email
+   ORDER BY i.billing_year DESC, i.billing_month DESC, c.name;
+
+   COMMENT ON VIEW services.view_client_invoices IS 'Client invoices with related information';
+
 END $$;

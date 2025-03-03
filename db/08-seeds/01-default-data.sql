@@ -7,6 +7,10 @@ BEGIN
     EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA audit TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA products TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA warehouses TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA clients TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA services TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA billing TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA wialon TO %I', current_user);
 
     -- Grant table permissions
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA auth TO %I', current_user);
@@ -14,6 +18,10 @@ BEGIN
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA audit TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA products TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA warehouses TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA clients TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA services TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA billing TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA wialon TO %I', current_user);
 
     -- Grant sequence permissions
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA auth TO %I', current_user);
@@ -21,6 +29,10 @@ BEGIN
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA audit TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA products TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA warehouses TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA clients TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA services TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA billing TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA wialon TO %I', current_user);
 
     -- Grant execute permissions on core functions
     EXECUTE format('GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA core TO %I', current_user);
@@ -57,7 +69,21 @@ BEGIN
         ('Notifications', 'notifications', 'module'),
         ('Settings', 'settings', 'module'),
         ('Documents', 'documents', 'module'),
-        ('Logs', 'logs', 'module')
+        ('Logs', 'logs', 'module'),
+        -- New resources
+        ('Clients', 'clients', 'module'),
+        ('Client Documents', 'client_documents', 'table'),
+        ('Client Contacts', 'client_contacts', 'table'),
+        ('Wialon Objects', 'wialon_objects', 'module'),
+        ('Object Ownership', 'object_ownership', 'table'),
+        ('Tariffs', 'tariffs', 'module'),
+        ('Object Tariffs', 'object_tariffs', 'table'),
+        ('Payments', 'payments', 'module'),
+        ('Services', 'services', 'module'),
+        ('Client Services', 'client_services', 'table'),
+        ('Invoices', 'invoices', 'module'),
+        ('Invoice Documents', 'invoice_documents', 'table'),
+        ('Billing', 'billing', 'module')
     ) AS v (name, code, type)
     WHERE NOT EXISTS (
         SELECT 1 FROM core.resources
@@ -81,7 +107,10 @@ BEGIN
         ('Restore', 'restore', 'Permission to restore archived records'),
         ('Transfer', 'transfer', 'Permission to transfer items'),
         ('Assign', 'assign', 'Permission to assign items or tasks'),
-        ('Configure', 'configure', 'Permission to configure settings')
+        ('Configure', 'configure', 'Permission to configure settings'),
+        -- New actions
+        ('Bill', 'bill', 'Permission to create bills and invoices'),
+        ('Pay', 'pay', 'Permission to register payments')
     ) AS v (name, code, description)
     WHERE NOT EXISTS (
         SELECT 1 FROM core.actions
@@ -123,7 +152,15 @@ BEGIN
         ('Notification Management', 'Permissions related to notification settings'),
         ('System Configuration', 'Permissions related to system configuration'),
         ('Audit Log Access', 'Permissions related to audit log viewing'),
-        ('Archive Management', 'Permissions related to archiving and restoration')
+        ('Archive Management', 'Permissions related to archiving and restoration'),
+        -- New permission groups
+        ('Client Management', 'Permissions related to client management'),
+        ('Wialon Object Management', 'Permissions related to Wialon objects'),
+        ('Tariff Management', 'Permissions related to tariff management'),
+        ('Service Management', 'Permissions related to service management'),
+        ('Billing Management', 'Permissions related to billing and finances'),
+        ('Invoice Management', 'Permissions related to invoice creation and management'),
+        ('Payment Management', 'Permissions related to payment tracking')
     ) AS v (name, description)
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.permission_groups
@@ -163,7 +200,15 @@ BEGIN
             (pg.name = 'Notification Management' AND r.code = 'notifications') OR
             (pg.name = 'System Configuration' AND r.code = 'settings') OR
             (pg.name = 'Audit Log Access' AND r.code = 'logs') OR
-            (pg.name = 'Archive Management' AND r.code IN ('products', 'documents', 'stock_movements') AND pg.name = 'Archive Management')
+            (pg.name = 'Archive Management' AND r.code IN ('products', 'documents', 'stock_movements') AND pg.name = 'Archive Management') OR
+            -- New permissions mappings
+            (pg.name = 'Client Management' AND r.code IN ('clients', 'client_documents', 'client_contacts')) OR
+            (pg.name = 'Wialon Object Management' AND r.code IN ('wialon_objects', 'object_ownership')) OR
+            (pg.name = 'Tariff Management' AND r.code IN ('tariffs', 'object_tariffs')) OR
+            (pg.name = 'Service Management' AND r.code IN ('services', 'client_services')) OR
+            (pg.name = 'Billing Management' AND r.code IN ('billing', 'payments', 'invoices')) OR
+            (pg.name = 'Invoice Management' AND r.code IN ('invoices', 'invoice_documents')) OR
+            (pg.name = 'Payment Management' AND r.code = 'payments')
     )
     INSERT INTO auth.permissions (
         group_id, 
@@ -196,7 +241,12 @@ BEGIN
         ('stock_controller', 'User responsible for stock operations', true),
         ('warranty_manager', 'User managing warranty claims and tracking', true),
         ('system_auditor', 'User with access to audit logs and system monitoring', true),
-        ('user', 'Regular user with basic permissions', true)
+        ('user', 'Regular user with basic permissions', true),
+        -- New roles
+        ('client_manager', 'User managing clients and their services', true),
+        ('finance_manager', 'User managing billing, invoices and payments', true),
+        ('wialon_manager', 'User managing Wialon objects and tariffs', true),
+        ('service_manager', 'User managing services and client subscriptions', true)
     ) AS v (name, description, is_system)
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.roles
@@ -268,7 +318,7 @@ BEGIN
         WHERE role_id = r.id AND permission_id = p.id
     );
 
-        -- Grant system auditor permissions
+    -- Grant system auditor permissions
     INSERT INTO auth.role_permissions (role_id, permission_id)
     SELECT r.id, p.id
     FROM auth.roles r
@@ -282,18 +332,18 @@ BEGIN
         WHERE role_id = r.id AND permission_id = p.id
     );
 
--- Grant warranty manager permissions
-INSERT INTO auth.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM auth.roles r
-CROSS JOIN auth.permissions p
-JOIN auth.permission_groups pg ON p.group_id = pg.id
-WHERE r.name = 'warranty_manager'
-AND pg.name IN ('Warranty Management', 'Document Management', 'Report Management')
-AND NOT EXISTS (
-    SELECT 1 FROM auth.role_permissions
-    WHERE role_id = r.id AND permission_id = p.id
-);
+    -- Grant warranty manager permissions
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'warranty_manager'
+    AND pg.name IN ('Warranty Management', 'Document Management', 'Report Management')
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
 
     -- Grant system auditor permissions
     INSERT INTO auth.role_permissions (role_id, permission_id)
@@ -332,6 +382,58 @@ AND NOT EXISTS (
     WHERE r.name = 'user'
     AND pg.name IN ('Report Management')
     AND p.code LIKE '%.read'
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Grant client manager permissions
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'client_manager'
+    AND pg.name IN ('Client Management', 'Document Management', 'Report Management', 'Service Management')
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Grant finance manager permissions
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'finance_manager'
+    AND pg.name IN ('Billing Management', 'Invoice Management', 'Payment Management', 'Report Management')
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Grant wialon manager permissions
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'wialon_manager'
+    AND pg.name IN ('Wialon Object Management', 'Tariff Management', 'Report Management')
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Grant service manager permissions
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'service_manager'
+    AND pg.name IN ('Service Management', 'Client Management', 'Report Management')
     AND NOT EXISTS (
         SELECT 1 FROM auth.role_permissions
         WHERE role_id = r.id AND permission_id = p.id
