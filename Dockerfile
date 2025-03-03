@@ -36,7 +36,7 @@ RUN cd /tmp/sql-init && \
     find . -path "*/08-seeds/*.sql" | sort | while read f; do \
         filename=$(basename "$f"); \
         number=$(echo "$filename" | grep -o '^[0-9]\+' || echo "00"); \
-        cp "$f" "/docker-entrypoint-initdb.d/700_${number}_${filename#*-}"; \
+        cp "$f" "/docker-entrypoint-initdb.d/800_${number}_${filename#*-}"; \
     done && \
     # Видаляємо тимчасову директорію
     rm -rf /tmp/sql-init
