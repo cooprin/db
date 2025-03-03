@@ -51,7 +51,7 @@ BEGIN
         RAISE NOTICE 'Client services table created';
     END IF;
 
-    -- Service invoices
+    -- Service invoices - видаляємо зовнішній ключ на billing.payments
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.tables 
         WHERE table_schema = 'services' AND table_name = 'invoices'
@@ -72,8 +72,7 @@ BEGIN
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_invoices_client FOREIGN KEY (client_id) 
                 REFERENCES clients.clients(id),
-            CONSTRAINT fk_invoices_payment FOREIGN KEY (payment_id) 
-                REFERENCES billing.payments(id),
+            -- Видалено constraint: CONSTRAINT fk_invoices_payment FOREIGN KEY (payment_id) REFERENCES billing.payments(id)
             CONSTRAINT fk_invoices_user FOREIGN KEY (created_by) 
                 REFERENCES auth.users(id) ON DELETE SET NULL,
             CONSTRAINT chk_invoice_status CHECK (status IN ('draft', 'issued', 'paid', 'cancelled')),
