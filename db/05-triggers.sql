@@ -589,22 +589,7 @@ BEGIN
                UPDATE wialon.object_ownership_history 
                SET end_date = CURRENT_DATE
                WHERE object_id = NEW.id AND end_date IS NULL;
-               
-               -- Insert a new ownership record
-               INSERT INTO wialon.object_ownership_history
-                  (object_id, client_id, start_date, created_by)
-               VALUES
-                  (NEW.id, NEW.client_id, CURRENT_DATE, 
-                   coalesce(current_setting('audit.user_id', false)::uuid, '00000000-0000-0000-0000-000000000000'::uuid));
-           END IF;
-
-           -- For new objects, create an initial ownership record
-           IF (TG_OP = 'INSERT') THEN
-               INSERT INTO wialon.object_ownership_history
-                  (object_id, client_id, start_date, created_by)
-               VALUES
-                  (NEW.id, NEW.client_id, CURRENT_DATE, 
-                   coalesce(current_setting('audit.user_id', false)::uuid, '00000000-0000-0000-0000-000000000000'::uuid));
+ 
            END IF;
 
            RETURN NEW;
