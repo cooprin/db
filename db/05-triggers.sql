@@ -605,7 +605,86 @@ BEGIN
            EXECUTE FUNCTION wialon.update_object_ownership();
 
        RAISE NOTICE 'Trigger for managing object ownership created';
+
+        -- Функція для автоматичного призначення послуг "object_based" клієнтам з об'єктами
+        CREATE OR REPLACE FUNCTION wialon.auto_assign_object_based_services()
+        RETURNS TRIGGER 
+        LANGUAGE plpgsql
+        AS $function$
+        DECLARE
+            object_service UUID;
+            client_has_service BOOLEAN;
+            day_of_month INTEGER;
+        BEGIN
+            -- Перевіряємо, чи маємо справу з новим об'єктом чи зміною власника
+            IF (TG_OP = 'INSERT') OR (TG_OP = 'UPDATE' AND OLD.client_id IS DISTINCT FROM NEW.client_id) THEN
+                
+                -- Перевіряємо чи клієнт вже має хоча б один об'єкт (окрім поточного при UPDATE)
+                IF TG_OP = 'INSERT' THEN
+                    SELECT EXISTS (
+                        SELECT 1 FROM wialon.objects 
+                        WHERE client_id = NEW.client_id AND id != NEW.id
+                    ) INTO client_has_service;
+                ELSE
+                    SELECT EXISTS (
+                        SELECT 1 FROM wialon.objects 
+                        WHERE client_id = NEW.client_id AND id != NEW.id
+                    ) INTO client_has_service;
+                END IF;
+                
+                -- Якщо це перший об'єкт клієнта, призначаємо послуги
+                IF NOT client_has_service THEN
+                    -- Знаходимо всі послуги типу "object_based"
+                    FOR object_service IN 
+                        SELECT id FROM services.services 
+                        WHERE service_type = 'object_based' AND is_active = true
+                    LOOP
+                        -- Перевіряємо чи клієнт вже має цю послугу
+                        IF NOT EXISTS (
+                            SELECT 1 FROM services.client_services 
+                            WHERE client_id = NEW.client_id 
+                            AND service_id = object_service 
+                            AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+                        ) THEN
+                            -- Визначаємо дату початку послуги
+                            -- Якщо об'єкт був доданий до 15-го числа, послуга починається з поточного місяця
+                            -- Інакше - з наступного
+                            day_of_month := EXTRACT(DAY FROM CURRENT_DATE);
+                            
+                            -- Призначаємо послугу
+                            INSERT INTO services.client_services (
+                                client_id, service_id, start_date, status, notes
+                            ) VALUES (
+                                NEW.client_id, 
+                                object_service, 
+                                CURRENT_DATE, 
+                                'active', 
+                                'Автоматично призначено при додаванні об''єкта ' || NEW.name
+                            );
+                        END IF;
+                    END LOOP;
+                END IF;
+            END IF;
+            
+            RETURN NEW;
+        END;
+        $function$;
+
+        -- Створення тригера
+        DROP TRIGGER IF EXISTS auto_assign_services_trigger ON wialon.objects;
+
+        CREATE TRIGGER auto_assign_services_trigger
+            AFTER INSERT OR UPDATE OF client_id ON wialon.objects
+            FOR EACH ROW
+            EXECUTE FUNCTION wialon.auto_assign_object_based_services();
+
+
+
+
+
    END IF;
+
+   
 
    -- Trigger to handle tariff changes
    IF NOT EXISTS (
@@ -640,7 +719,173 @@ BEGIN
            EXECUTE FUNCTION billing.handle_tariff_change();
 
        RAISE NOTICE 'Trigger for handling tariff changes created';
+
+        -- Функція для оновлення обчислюваної вартості послуг при зміні тарифів
+        CREATE OR REPLACE FUNCTION billing.update_object_based_service_prices()
+        RETURNS TRIGGER 
+        LANGUAGE plpgsql
+        AS $function$
+        DECLARE
+            client_id UUID;
+        BEGIN
+            -- Отримуємо client_id для об'єкта
+            SELECT o.client_id INTO client_id
+            FROM wialon.objects o
+            WHERE o.id = NEW.object_id;
+            
+            -- Оновлюємо рахунки, які ще не оплачені
+            UPDATE services.invoices i
+            SET total_amount = (
+                SELECT SUM(ii.total_price)
+                FROM services.invoice_items ii
+                WHERE ii.invoice_id = i.id
+            )
+            WHERE i.client_id = client_id
+            AND i.status IN ('draft', 'issued')
+            AND EXISTS (
+                SELECT 1 FROM services.invoice_items ii
+                JOIN services.services s ON ii.service_id = s.id
+                WHERE ii.invoice_id = i.id
+                AND s.service_type = 'object_based'
+            );
+            
+            RETURN NEW;
+        END;
+        $function$;
+
+        -- Створення тригера
+        DROP TRIGGER IF EXISTS update_service_prices_trigger ON billing.object_tariffs;
+
+        CREATE TRIGGER update_service_prices_trigger
+            AFTER INSERT OR UPDATE ON billing.object_tariffs
+            FOR EACH ROW
+            EXECUTE FUNCTION billing.update_object_based_service_prices();
+
+
    END IF;
+
+    -- Тригер для автоматичного призначення послуг "object_based" клієнтам з об'єктами
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc 
+        WHERE proname = 'auto_assign_object_based_services' 
+        AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'wialon')
+    ) THEN
+        CREATE OR REPLACE FUNCTION wialon.auto_assign_object_based_services()
+        RETURNS TRIGGER 
+        LANGUAGE plpgsql
+        AS $function$
+        DECLARE
+            object_service UUID;
+            client_has_objects BOOLEAN;
+            day_of_month INTEGER;
+        BEGIN
+            -- Перевіряємо, чи маємо справу з новим об'єктом чи зміною власника
+            IF (TG_OP = 'INSERT') OR (TG_OP = 'UPDATE' AND OLD.client_id IS DISTINCT FROM NEW.client_id) THEN
+                
+                -- Перевіряємо чи клієнт вже має інші об'єкти (окрім поточного)
+                SELECT EXISTS (
+                    SELECT 1 FROM wialon.objects 
+                    WHERE client_id = NEW.client_id AND id != NEW.id
+                ) INTO client_has_objects;
+                
+                -- Якщо це перший об'єкт клієнта (або клієнт змінився), то призначаємо послуги
+                -- Для першого об'єкта - повне призначення
+                -- Для наступних - перевіряємо, чи всі послуги типу object_based вже призначені
+                
+                -- Знаходимо всі послуги типу "object_based"
+                FOR object_service IN 
+                    SELECT id FROM services.services 
+                    WHERE service_type = 'object_based' AND is_active = true
+                LOOP
+                    -- Перевіряємо чи клієнт вже має цю послугу
+                    IF NOT EXISTS (
+                        SELECT 1 FROM services.client_services 
+                        WHERE client_id = NEW.client_id 
+                        AND service_id = object_service 
+                        AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+                        AND status = 'active'
+                    ) THEN
+                        -- Призначаємо послугу
+                        INSERT INTO services.client_services (
+                            client_id, service_id, start_date, status, notes
+                        ) VALUES (
+                            NEW.client_id, 
+                            object_service, 
+                            CURRENT_DATE, 
+                            'active', 
+                            'Автоматично призначено при додаванні об''єкта ' || NEW.name
+                        );
+                    END IF;
+                END LOOP;
+            END IF;
+            
+            RETURN NEW;
+        END;
+        $function$;
+
+        -- Створення тригера
+        DROP TRIGGER IF EXISTS auto_assign_services_trigger ON wialon.objects;
+        
+        CREATE TRIGGER auto_assign_services_trigger
+            AFTER INSERT OR UPDATE OF client_id ON wialon.objects
+            FOR EACH ROW
+            EXECUTE FUNCTION wialon.auto_assign_object_based_services();
+
+        RAISE NOTICE 'Trigger for automatic service assignment created';
+    END IF;
+
+    -- Функція для оновлення обчислюваної вартості послуг при зміні тарифів
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc 
+        WHERE proname = 'update_object_based_service_prices' 
+        AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'billing')
+    ) THEN
+        CREATE OR REPLACE FUNCTION billing.update_object_based_service_prices()
+        RETURNS TRIGGER 
+        LANGUAGE plpgsql
+        AS $function$
+        DECLARE
+            client_id UUID;
+        BEGIN
+            -- Отримуємо client_id для об'єкта
+            SELECT o.client_id INTO client_id
+            FROM wialon.objects o
+            WHERE o.id = NEW.object_id;
+            
+            -- Якщо знайдено клієнта, перевіряємо наявність невиставлених рахунків
+            IF client_id IS NOT NULL THEN
+                -- Оновлюємо рахунки, які ще не оплачені
+                -- Це стосується лише рахунків зі статусами 'draft' або 'issued'
+                UPDATE services.invoices i
+                SET total_amount = (
+                    SELECT SUM(ii.total_price)
+                    FROM services.invoice_items ii
+                    WHERE ii.invoice_id = i.id
+                )
+                WHERE i.client_id = client_id
+                AND i.status IN ('draft', 'issued')
+                AND EXISTS (
+                    SELECT 1 FROM services.invoice_items ii
+                    JOIN services.services s ON ii.service_id = s.id
+                    WHERE ii.invoice_id = i.id
+                    AND s.service_type = 'object_based'
+                );
+            END IF;
+            
+            RETURN NEW;
+        END;
+        $function$;
+
+        -- Створення тригера
+        DROP TRIGGER IF EXISTS update_service_prices_trigger ON billing.object_tariffs;
+
+        CREATE TRIGGER update_service_prices_trigger
+            AFTER INSERT OR UPDATE ON billing.object_tariffs
+            FOR EACH ROW
+            EXECUTE FUNCTION billing.update_object_based_service_prices();
+
+        RAISE NOTICE 'Trigger for updating object-based service prices created';
+    END IF;
 
 END;
 $$;
