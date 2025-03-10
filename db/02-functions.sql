@@ -74,6 +74,6 @@ BEGIN
                 ownership_date <= CURRENT_DATE
             );
         END;
-        $func$ LANGUAGE plpgsql;
+        $func$;
     END IF;
 END $$;
