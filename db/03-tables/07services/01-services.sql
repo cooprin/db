@@ -99,6 +99,7 @@ BEGIN
             quantity INTEGER NOT NULL DEFAULT 1,
             unit_price DECIMAL(10,2) NOT NULL,
             total_price DECIMAL(10,2) NOT NULL,
+            metadata JSONB, -- Додана колонка metadata типу JSONB
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_invoice_items_invoice FOREIGN KEY (invoice_id) 
                 REFERENCES services.invoices(id) ON DELETE CASCADE,
@@ -107,6 +108,7 @@ BEGIN
         );
 
         COMMENT ON TABLE services.invoice_items IS 'Items in client invoices';
+        COMMENT ON COLUMN services.invoice_items.metadata IS 'JSON data containing additional information about the invoice item, such as object details or debt information';
         RAISE NOTICE 'Invoice items table created';
     END IF;
 
