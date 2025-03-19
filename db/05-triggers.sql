@@ -712,6 +712,82 @@ BEGIN
        RAISE NOTICE 'Trigger for handling tariff changes created';
    END IF;
 
+    -- Trigger for tracking object status changes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc 
+        WHERE proname = 'track_object_status_changes' 
+        AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'wialon')
+    ) THEN
+        CREATE OR REPLACE FUNCTION wialon.track_object_status_changes()
+        RETURNS TRIGGER 
+        LANGUAGE plpgsql
+        AS $function$
+        BEGIN
+            -- Якщо статус змінився
+            IF (TG_OP = 'UPDATE' AND OLD.status IS DISTINCT FROM NEW.status) THEN
+                -- Закриваємо попередній запис статусу
+                UPDATE wialon.object_status_history 
+                SET end_date = CURRENT_DATE
+                WHERE object_id = NEW.id AND end_date IS NULL;
+                
+                -- Додаємо новий запис з поточним статусом
+                INSERT INTO wialon.object_status_history (
+                    object_id, status, start_date, created_by
+                ) VALUES (
+                    NEW.id, 
+                    NEW.status, 
+                    CURRENT_DATE, 
+                    NULL  -- тут можна додати current_user якщо є така можливість
+                );
+            ELSIF (TG_OP = 'INSERT') THEN
+                -- Для нового об'єкта додаємо початковий запис статусу
+                INSERT INTO wialon.object_status_history (
+                    object_id, status, start_date, created_by
+                ) VALUES (
+                    NEW.id, 
+                    NEW.status, 
+                    CURRENT_DATE, 
+                    NULL  -- тут можна додати current_user якщо є така можливість
+                );
+            END IF;
+            
+            RETURN NEW;
+        END;
+        $function$;
+
+        -- Create the trigger
+        DROP TRIGGER IF EXISTS track_object_status_changes_trigger ON wialon.objects;
+        
+        CREATE TRIGGER track_object_status_changes_trigger
+            AFTER INSERT OR UPDATE OF status ON wialon.objects
+            FOR EACH ROW
+            EXECUTE FUNCTION wialon.track_object_status_changes();
+
+        RAISE NOTICE 'Trigger for tracking object status changes created';
+    END IF;
+
+    -- Trigger for updating object status history
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'update_object_status_history_timestamp'
+    ) THEN
+        CREATE TRIGGER update_object_status_history_timestamp
+            BEFORE UPDATE ON wialon.object_status_history
+            FOR EACH ROW
+            EXECUTE FUNCTION core.update_timestamp();
+    END IF;
+
+    -- Audit trigger for object status history
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_trigger 
+        WHERE tgname = 'audit_object_status_history_changes'
+    ) THEN
+        CREATE TRIGGER audit_object_status_history_changes
+            AFTER INSERT OR UPDATE OR DELETE ON wialon.object_status_history
+            FOR EACH ROW
+            EXECUTE FUNCTION audit.log_table_change();
+    END IF;
+
    -- Функція для оновлення обчислюваної вартості послуг при зміні тарифів
    IF NOT EXISTS (
        SELECT 1 FROM pg_proc 

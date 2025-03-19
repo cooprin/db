@@ -73,4 +73,33 @@ BEGIN
         COMMENT ON TABLE wialon.object_attributes IS 'Additional attributes for Wialon objects';
         RAISE NOTICE 'Object attributes table created';
     END IF;
+
+        -- Object status history table
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'wialon' AND table_name = 'object_status_history'
+    ) THEN
+        CREATE TABLE wialon.object_status_history (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            object_id UUID NOT NULL,
+            status VARCHAR(50) NOT NULL,
+            start_date DATE NOT NULL,
+            end_date DATE,
+            created_by UUID,
+            notes TEXT,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT fk_status_history_object FOREIGN KEY (object_id) 
+                REFERENCES wialon.objects(id) ON DELETE CASCADE,
+            CONSTRAINT fk_status_history_user FOREIGN KEY (created_by) 
+                REFERENCES auth.users(id) ON DELETE SET NULL,
+            CONSTRAINT chk_status_values CHECK (status IN ('active', 'suspended', 'inactive'))
+        );
+
+        CREATE INDEX idx_object_status_history_object_id ON wialon.object_status_history(object_id);
+        CREATE INDEX idx_object_status_history_dates ON wialon.object_status_history(start_date, end_date);
+
+        COMMENT ON TABLE wialon.object_status_history IS 'History of object status changes';
+        COMMENT ON COLUMN wialon.object_status_history.end_date IS 'NULL means currently active status';
+        RAISE NOTICE 'Object status history table created';
+    END IF;
 END $$;
