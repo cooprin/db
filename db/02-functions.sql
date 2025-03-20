@@ -90,6 +90,20 @@ BEGIN
             RETURN FALSE;
         END IF;
 
+        -- Якщо об'єкт був призначений до 15-го числа місяця, нараховуємо за повний місяць
+        IF ownership_date <= mid_month_cutoff THEN
+            -- Перевіряємо чи об'єкт активний зараз
+            IF EXISTS (
+                SELECT 1 FROM wialon.object_status_history 
+                WHERE object_id = p_object_id 
+                AND status = 'active'
+                AND start_date <= CURRENT_DATE
+                AND (end_date IS NULL OR end_date >= CURRENT_DATE)
+            ) THEN
+                RETURN TRUE;
+            END IF;
+        END IF;
+
         -- Підрахунок днів активності об'єкта в заданому місяці
         SELECT COUNT(*)::INTEGER INTO active_days
         FROM (
@@ -109,18 +123,7 @@ BEGIN
         );
         
         -- Правило: оплата нараховується, якщо об'єкт був активний більше половини місяця
-        -- або якщо об'єкт призначений до 15-го числа і в даний момент активний
-        RETURN (
-            (active_days > month_days / 2) OR 
-            (ownership_date <= mid_month_cutoff AND 
-            EXISTS (
-                SELECT 1 FROM wialon.object_status_history 
-                WHERE object_id = p_object_id 
-                AND status = 'active'
-                AND start_date <= CURRENT_DATE
-                AND (end_date IS NULL OR end_date >= CURRENT_DATE)
-            ))
-        );
+        RETURN (active_days > month_days / 2);
     END;
     $func$;
 
@@ -133,14 +136,27 @@ BEGIN
     RETURNS BOOLEAN
     LANGUAGE plpgsql
     AS $func$
+    DECLARE
+        result BOOLEAN;
+        p_period_start DATE;
+        p_period_end DATE;
+        obj_tariff_id UUID;
     BEGIN
-        RETURN EXISTS (
-            SELECT 1 FROM billing.object_payment_records 
-            WHERE object_id = p_object_id 
-            AND billing_year = p_billing_year 
-            AND billing_month = p_billing_month 
-            AND status IN ('paid', 'partial')
-        );
+        -- Визначаємо початок і кінець періоду
+        p_period_start := DATE(p_billing_year || '-' || LPAD(p_billing_month::text, 2, '0') || '-01');
+        p_period_end := (p_period_start + INTERVAL '1 month' - INTERVAL '1 day')::DATE;
+
+        -- Перевіряємо, чи є оплати за об'єкт для цього періоду
+        SELECT EXISTS (
+            SELECT 1 FROM billing.object_payment_records opr
+            WHERE opr.object_id = p_object_id 
+            AND opr.billing_year = p_billing_year 
+            AND opr.billing_month = p_billing_month 
+            AND opr.status IN ('paid', 'partial')
+        ) INTO result;
+
+        -- Якщо знайдено будь-яку оплату за цей період, повертаємо true
+        RETURN result;
     END;
     $func$;
 
@@ -157,10 +173,26 @@ BEGIN
         start_date DATE;
         check_year INTEGER;
         check_month INTEGER;
+        has_tariff BOOLEAN;
     BEGIN
         -- Отримуємо поточний рік і місяць
         current_year := EXTRACT(YEAR FROM CURRENT_DATE);
         current_month := EXTRACT(MONTH FROM CURRENT_DATE);
+        
+        -- Перевіряємо, чи об'єкт має тариф
+        SELECT EXISTS (
+            SELECT 1 FROM billing.object_tariffs
+            WHERE object_id = p_object_id
+            AND effective_to IS NULL
+        ) INTO has_tariff;
+        
+        -- Якщо об'єкт не має тарифу, повертаємо поточний місяць/рік
+        IF NOT has_tariff THEN
+            billing_year := current_year;
+            billing_month := current_month;
+            RETURN NEXT;
+            RETURN;
+        END IF;
         
         -- Отримуємо дату початку активності об'єкта
         SELECT MIN(start_date) INTO start_date
@@ -176,12 +208,12 @@ BEGIN
             RETURN;
         END IF;
         
-        -- Шукаємо найближчий неоплачений період, починаючи з поточного місяця
+        -- Починаємо пошук з поточного місяця
         check_year := current_year;
         check_month := current_month;
         
-        -- Перевіряємо наступні 12 місяців
-        FOR i IN 0..11 LOOP
+        -- Перевіряємо поточний та наступні 12 місяців
+        FOR i IN 0..12 LOOP
             -- Якщо для цього місяця немає оплати, повертаємо його
             IF NOT billing.is_period_paid(p_object_id, check_year, check_month) THEN
                 billing_year := check_year;
@@ -198,9 +230,9 @@ BEGIN
             END IF;
         END LOOP;
         
-        -- Якщо всі 12 місяців оплачені, повертаємо місяць через рік
-        billing_year := CASE WHEN current_month = 12 THEN current_year + 1 ELSE current_year END;
-        billing_month := CASE WHEN current_month = 12 THEN 1 ELSE current_month + 1 END;
+        -- Якщо всі 12 місяців оплачені, повертаємо наступний місяць після останнього перевіреного
+        billing_year := check_year;
+        billing_month := check_month;
         RETURN NEXT;
         RETURN;
     END;
