@@ -195,10 +195,10 @@ BEGIN
         END IF;
         
         -- Отримуємо дату початку активності об'єкта
-        SELECT MIN(start_date) INTO start_date
-        FROM wialon.object_status_history
-        WHERE object_id = p_object_id
-        AND status = 'active';
+        SELECT MIN(osh.start_date) INTO start_date                         
+        FROM wialon.object_status_history osh
+        WHERE osh.object_id = p_object_id
+        AND osh.status = 'active';
         
         -- Якщо немає активного статусу, повертаємо поточний місяць/рік
         IF start_date IS NULL THEN
