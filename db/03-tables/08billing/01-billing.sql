@@ -19,7 +19,7 @@ BEGIN
         RAISE NOTICE 'Tariffs table created';
     END IF;
 
-    -- Object tariffs table - видаляємо зовнішній ключ на wialon.objects
+        -- Object tariffs table - видаляємо зовнішній ключ на wialon.objects
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.tables 
         WHERE table_schema = 'billing' AND table_name = 'object_tariffs'
@@ -30,6 +30,7 @@ BEGIN
             tariff_id UUID NOT NULL,
             effective_from DATE NOT NULL,
             effective_to DATE,
+            notes TEXT,
             created_by UUID,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             -- Видалено constraint: CONSTRAINT fk_object_tariffs_object FOREIGN KEY (object_id) REFERENCES wialon.objects(id) ON DELETE CASCADE
@@ -41,6 +42,7 @@ BEGIN
 
         COMMENT ON TABLE billing.object_tariffs IS 'Tariffs assigned to objects with effective dates';
         COMMENT ON COLUMN billing.object_tariffs.effective_to IS 'NULL means currently active';
+        COMMENT ON COLUMN billing.object_tariffs.notes IS 'Additional notes for tariff assignment';
         RAISE NOTICE 'Object tariffs table created';
     END IF;
 
