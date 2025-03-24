@@ -737,7 +737,7 @@ BEGIN
                     NEW.id, 
                     NEW.status, 
                     CURRENT_DATE, 
-                    NULL  -- тут можна додати current_user якщо є така можливість
+                    NULL  -- Тут можна додати current_user якщо є така можливість
                 );
             ELSIF (TG_OP = 'INSERT') THEN
                 -- Для нового об'єкта додаємо початковий запис статусу
@@ -747,7 +747,7 @@ BEGIN
                     NEW.id, 
                     NEW.status, 
                     CURRENT_DATE, 
-                    NULL  -- тут можна додати current_user якщо є така можливість
+                    NULL  -- Тут можна додати current_user якщо є така можливість
                 );
             END IF;
             
