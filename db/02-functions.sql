@@ -174,10 +174,25 @@ BEGIN
         check_year INTEGER;
         check_month INTEGER;
         has_tariff BOOLEAN;
+        period_date DATE;
+        first_ownership_date DATE;
+        object_status VARCHAR(50);
     BEGIN
         -- Отримуємо поточний рік і місяць
         current_year := EXTRACT(YEAR FROM CURRENT_DATE);
         current_month := EXTRACT(MONTH FROM CURRENT_DATE);
+        
+        -- Перевіряємо статус об'єкта
+        SELECT status INTO object_status
+        FROM wialon.objects
+        WHERE id = p_object_id;
+        
+        IF object_status != 'active' THEN
+            billing_year := current_year;
+            billing_month := current_month;
+            RETURN NEXT;
+            RETURN;
+        END IF;
         
         -- Перевіряємо, чи об'єкт має тариф
         SELECT EXISTS (
@@ -186,7 +201,6 @@ BEGIN
             AND effective_to IS NULL
         ) INTO has_tariff;
         
-        -- Якщо об'єкт не має тарифу, повертаємо поточний місяць/рік
         IF NOT has_tariff THEN
             billing_year := current_year;
             billing_month := current_month;
@@ -194,11 +208,21 @@ BEGIN
             RETURN;
         END IF;
         
+        -- Отримуємо дату першого призначення об'єкта клієнту
+        SELECT MIN(start_date) INTO first_ownership_date
+        FROM wialon.object_ownership_history
+        WHERE object_id = p_object_id;
+        
         -- Отримуємо дату початку активності об'єкта
-        SELECT MIN(osh.start_date) INTO start_date                         
-        FROM wialon.object_status_history osh
-        WHERE osh.object_id = p_object_id
-        AND osh.status = 'active';
+        SELECT MIN(start_date) INTO start_date                         
+        FROM wialon.object_status_history
+        WHERE object_id = p_object_id
+        AND status = 'active';
+        
+        -- Використовуємо пізнішу з дат
+        IF start_date IS NULL OR first_ownership_date > start_date THEN
+            start_date := first_ownership_date;
+        END IF;
         
         -- Якщо немає активного статусу, повертаємо поточний місяць/рік
         IF start_date IS NULL THEN
@@ -208,18 +232,38 @@ BEGIN
             RETURN;
         END IF;
         
-        -- Починаємо пошук з поточного місяця
-        check_year := current_year;
-        check_month := current_month;
+        -- Починаємо пошук з дати початку активності об'єкта
+        check_year := EXTRACT(YEAR FROM start_date);
+        check_month := EXTRACT(MONTH FROM start_date);
         
-        -- Перевіряємо поточний та наступні 12 місяців
-        FOR i IN 0..12 LOOP
-            -- Якщо для цього місяця немає оплати, повертаємо його
-            IF NOT billing.is_period_paid(p_object_id, check_year, check_month) THEN
-                billing_year := check_year;
-                billing_month := check_month;
-                RETURN NEXT;
-                RETURN;
+        -- Перевіряємо всі місяці від початку активності до поточного
+        WHILE (check_year < current_year OR 
+            (check_year = current_year AND check_month <= current_month))
+        LOOP
+            period_date := make_date(check_year, check_month, 1);
+            
+            -- Перевіряємо чи був об'єкт активний в цей період
+            IF EXISTS (
+                SELECT 1 
+                FROM wialon.object_status_history
+                WHERE object_id = p_object_id
+                AND status = 'active'
+                AND start_date <= period_date
+                AND (end_date IS NULL OR end_date >= period_date)
+            ) AND EXISTS (
+                SELECT 1 
+                FROM billing.object_tariffs
+                WHERE object_id = p_object_id
+                AND effective_from <= period_date
+                AND (effective_to IS NULL OR effective_to >= period_date)
+            ) THEN
+                -- Перевіряємо чи період оплачений
+                IF NOT billing.is_period_paid(p_object_id, check_year, check_month) THEN
+                    billing_year := check_year;
+                    billing_month := check_month;
+                    RETURN NEXT;
+                    RETURN;
+                END IF;
             END IF;
             
             -- Переходимо до наступного місяця
@@ -230,9 +274,15 @@ BEGIN
             END IF;
         END LOOP;
         
-        -- Якщо всі 12 місяців оплачені, повертаємо наступний місяць після останнього перевіреного
-        billing_year := check_year;
-        billing_month := check_month;
+        -- Якщо всі періоди оплачені, повертаємо наступний місяць
+        IF current_month = 12 THEN
+            billing_year := current_year + 1;
+            billing_month := 1;
+        ELSE
+            billing_year := current_year;
+            billing_month := current_month + 1;
+        END IF;
+        
         RETURN NEXT;
         RETURN;
     END;
