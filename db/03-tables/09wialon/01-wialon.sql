@@ -88,6 +88,7 @@ BEGIN
             created_by UUID,
             notes TEXT,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_status_history_object FOREIGN KEY (object_id) 
                 REFERENCES wialon.objects(id) ON DELETE CASCADE,
             CONSTRAINT fk_status_history_user FOREIGN KEY (created_by) 
