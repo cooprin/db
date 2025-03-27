@@ -102,6 +102,77 @@ BEGIN
            EXECUTE FUNCTION audit.log_table_change();
    END IF;
 
+   -- Audit triggers for Company schema
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_organization_details_changes'
+   ) THEN
+       CREATE TRIGGER audit_organization_details_changes
+           AFTER INSERT OR UPDATE OR DELETE ON company.organization_details
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_bank_accounts_changes'
+   ) THEN
+       CREATE TRIGGER audit_bank_accounts_changes
+           AFTER INSERT OR UPDATE OR DELETE ON company.bank_accounts
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_legal_documents_changes'
+   ) THEN
+       CREATE TRIGGER audit_legal_documents_changes
+           AFTER INSERT OR UPDATE OR DELETE ON company.legal_documents
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_wialon_integration_changes'
+   ) THEN
+       CREATE TRIGGER audit_wialon_integration_changes
+           AFTER INSERT OR UPDATE OR DELETE ON company.wialon_integration
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_email_settings_changes'
+   ) THEN
+       CREATE TRIGGER audit_email_settings_changes
+           AFTER INSERT OR UPDATE OR DELETE ON company.email_settings
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_email_templates_changes'
+   ) THEN
+       CREATE TRIGGER audit_email_templates_changes
+           AFTER INSERT OR UPDATE OR DELETE ON company.email_templates
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_system_settings_changes'
+   ) THEN
+       CREATE TRIGGER audit_system_settings_changes
+           AFTER INSERT OR UPDATE OR DELETE ON company.system_settings
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
    -- Products schema triggers
    -- Manufacturers table
    IF NOT EXISTS (
@@ -839,6 +910,87 @@ BEGIN
            EXECUTE FUNCTION billing.update_object_based_service_prices();
 
        RAISE NOTICE 'Trigger for updating object-based service prices created';
+   END IF;
+
+   -- Company schema triggers
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_organization_details_timestamp'
+   ) THEN
+       CREATE TRIGGER update_organization_details_timestamp
+           BEFORE UPDATE ON company.organization_details
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_bank_accounts_timestamp'
+   ) THEN
+       CREATE TRIGGER update_bank_accounts_timestamp
+           BEFORE UPDATE ON company.bank_accounts
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_legal_documents_timestamp'
+   ) THEN
+       CREATE TRIGGER update_legal_documents_timestamp
+           BEFORE UPDATE ON company.legal_documents
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_wialon_integration_timestamp'
+   ) THEN
+       CREATE TRIGGER update_wialon_integration_timestamp
+           BEFORE UPDATE ON company.wialon_integration
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_email_settings_timestamp'
+   ) THEN
+       CREATE TRIGGER update_email_settings_timestamp
+           BEFORE UPDATE ON company.email_settings
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_email_templates_timestamp'
+   ) THEN
+       CREATE TRIGGER update_email_templates_timestamp
+           BEFORE UPDATE ON company.email_templates
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_email_queue_timestamp'
+   ) THEN
+       CREATE TRIGGER update_email_queue_timestamp
+           BEFORE UPDATE ON company.email_queue
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_system_settings_timestamp'
+   ) THEN
+       CREATE TRIGGER update_system_settings_timestamp
+           BEFORE UPDATE ON company.system_settings
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
    END IF;
 
 END;

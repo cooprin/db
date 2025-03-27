@@ -11,6 +11,7 @@ BEGIN
     EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA services TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA billing TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA wialon TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA company TO %I', current_user);
 
     -- Grant table permissions
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA auth TO %I', current_user);
@@ -22,6 +23,7 @@ BEGIN
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA services TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA billing TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA wialon TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA company TO %I', current_user);
 
     -- Grant sequence permissions
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA auth TO %I', current_user);
@@ -33,6 +35,7 @@ BEGIN
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA services TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA billing TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA wialon TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA company TO %I', current_user);
 
     -- Grant execute permissions on core functions
     EXECUTE format('GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA core TO %I', current_user);
@@ -83,7 +86,14 @@ BEGIN
         ('Client Services', 'client_services', 'table'),
         ('Invoices', 'invoices', 'module'),
         ('Invoice Documents', 'invoice_documents', 'table'),
-        ('Billing', 'billing', 'module')
+        ('Billing', 'billing', 'module'),
+        ('Company Profile', 'company_profile', 'module'),
+        ('Bank Accounts', 'bank_accounts', 'table'),
+        ('Legal Documents', 'legal_documents', 'table'),
+        ('Wialon Integration', 'wialon_integration', 'module'),
+        ('Email Settings', 'email_settings', 'module'),
+        ('Email Templates', 'email_templates', 'table'),
+        ('System Settings', 'system_settings', 'module')
     ) AS v (name, code, type)
     WHERE NOT EXISTS (
         SELECT 1 FROM core.resources
@@ -160,7 +170,10 @@ BEGIN
         ('Service Management', 'Permissions related to service management'),
         ('Billing Management', 'Permissions related to billing and finances'),
         ('Invoice Management', 'Permissions related to invoice creation and management'),
-        ('Payment Management', 'Permissions related to payment tracking')
+        ('Payment Management', 'Permissions related to payment tracking'),
+        ('Company Management', 'Permissions related to company settings and profile'),
+        ('Email Management', 'Permissions related to email settings and templates'),
+        ('Integration Management', 'Permissions related to external systems integration')
     ) AS v (name, description)
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.permission_groups
@@ -208,7 +221,11 @@ BEGIN
             (pg.name = 'Service Management' AND r.code IN ('services', 'client_services')) OR
             (pg.name = 'Billing Management' AND r.code IN ('billing', 'payments', 'invoices')) OR
             (pg.name = 'Invoice Management' AND r.code IN ('invoices', 'invoice_documents')) OR
-            (pg.name = 'Payment Management' AND r.code = 'payments')
+            (pg.name = 'Payment Management' AND r.code = 'payments') OR
+            -- Company management permissions
+            (pg.name = 'Company Management' AND r.code IN ('company_profile', 'bank_accounts', 'legal_documents', 'system_settings')) OR
+            (pg.name = 'Email Management' AND r.code IN ('email_settings', 'email_templates')) OR
+            (pg.name = 'Integration Management' AND r.code IN ('wialon_integration'))
     )
     INSERT INTO auth.permissions (
         group_id, 
@@ -246,7 +263,8 @@ BEGIN
         ('client_manager', 'User managing clients and their services', true),
         ('finance_manager', 'User managing billing, invoices and payments', true),
         ('wialon_manager', 'User managing Wialon objects and tariffs', true),
-        ('service_manager', 'User managing services and client subscriptions', true)
+        ('service_manager', 'User managing services and client subscriptions', true),
+        ('company_manager', 'User managing company settings and integrations', true)
     ) AS v (name, description, is_system)
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.roles
@@ -434,6 +452,19 @@ BEGIN
     JOIN auth.permission_groups pg ON p.group_id = pg.id
     WHERE r.name = 'service_manager'
     AND pg.name IN ('Service Management', 'Client Management', 'Report Management')
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Grant company manager permissions
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'company_manager'
+    AND pg.name IN ('Company Management', 'Email Management', 'Integration Management', 'System Configuration')
     AND NOT EXISTS (
         SELECT 1 FROM auth.role_permissions
         WHERE role_id = r.id AND permission_id = p.id

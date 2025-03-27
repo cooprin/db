@@ -442,6 +442,62 @@ END IF;
         CREATE INDEX idx_invoice_items_invoice ON services.invoice_items(invoice_id);
     END IF;
 
+    -- Company schema indexes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'company' 
+        AND tablename = 'bank_accounts' 
+        AND indexname = 'idx_bank_accounts_organization'
+    ) THEN
+        CREATE INDEX idx_bank_accounts_organization ON company.bank_accounts(organization_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'company' 
+        AND tablename = 'bank_accounts' 
+        AND indexname = 'idx_bank_accounts_currency'
+    ) THEN
+        CREATE INDEX idx_bank_accounts_currency ON company.bank_accounts(currency);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'company' 
+        AND tablename = 'legal_documents' 
+        AND indexname = 'idx_legal_documents_organization'
+    ) THEN
+        CREATE INDEX idx_legal_documents_organization ON company.legal_documents(organization_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'company' 
+        AND tablename = 'legal_documents' 
+        AND indexname = 'idx_legal_documents_dates'
+    ) THEN
+        CREATE INDEX idx_legal_documents_dates ON company.legal_documents(effective_date, expiry_date);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'company' 
+        AND tablename = 'email_templates' 
+        AND indexname = 'idx_email_templates_code'
+    ) THEN
+        CREATE INDEX idx_email_templates_code ON company.email_templates(code);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'company' 
+        AND tablename = 'system_settings' 
+        AND indexname = 'idx_system_settings_category'
+    ) THEN
+        CREATE INDEX idx_system_settings_category ON company.system_settings(category);
+    END IF;
+
+   
 
     -- Grant privileges
     -- Auth schema
@@ -488,4 +544,11 @@ END IF;
     GRANT USAGE ON SCHEMA services TO current_user;
     GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA services TO current_user;
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA services TO current_user;
+
+ -- Grant privileges for company schema
+    GRANT USAGE ON SCHEMA company TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA company TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA company TO current_user;
+
+
 END $$;

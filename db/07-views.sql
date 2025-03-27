@@ -540,4 +540,113 @@ BEGIN
 
    COMMENT ON VIEW services.view_client_invoices IS 'Client invoices with related information';
 
+-- Company details view
+   DROP VIEW IF EXISTS company.view_organization_full;
+   CREATE VIEW company.view_organization_full AS
+   SELECT 
+       o.id,
+       o.legal_name,
+       o.short_name,
+       o.legal_form,
+       o.edrpou,
+       o.tax_number,
+       o.legal_address,
+       o.actual_address,
+       o.phone,
+       o.email,
+       o.website,
+       o.director_name,
+       o.director_position,
+       o.accountant_name,
+       o.logo_path,
+       o.is_active,
+       jsonb_agg(
+           jsonb_build_object(
+               'id', ba.id,
+               'bank_name', ba.bank_name,
+               'account_number', ba.account_number,
+               'iban', ba.iban,
+               'mfo', ba.mfo,
+               'swift_code', ba.swift_code,
+               'currency', ba.currency,
+               'is_default', ba.is_default
+           ) ORDER BY ba.is_default DESC, ba.created_at
+       ) FILTER (WHERE ba.id IS NOT NULL) as bank_accounts,
+       COUNT(DISTINCT ld.id) as documents_count,
+       o.created_at,
+       o.updated_at
+   FROM company.organization_details o
+   LEFT JOIN company.bank_accounts ba ON o.id = ba.organization_id AND ba.is_active = true
+   LEFT JOIN company.legal_documents ld ON o.id = ld.organization_id
+   GROUP BY o.id;
+
+   COMMENT ON VIEW company.view_organization_full IS 'Detailed company information with bank accounts';
+
+   -- Email settings view
+   DROP VIEW IF EXISTS company.view_email_settings;
+   CREATE VIEW company.view_email_settings AS
+   SELECT 
+       id,
+       email_address,
+       display_name,
+       smtp_server,
+       smtp_port,
+       smtp_username,
+       use_ssl,
+       CASE 
+           WHEN smtp_password IS NOT NULL THEN true
+           ELSE false
+       END as has_password,
+       CASE 
+           WHEN oauth_client_id IS NOT NULL THEN true
+           ELSE false
+       END as has_oauth,
+       is_default,
+       is_active,
+       created_at,
+       updated_at
+   FROM company.email_settings;
+
+   COMMENT ON VIEW company.view_email_settings IS 'Email settings without sensitive data';
+
+   -- Email templates view
+   DROP VIEW IF EXISTS company.view_email_templates;
+   CREATE VIEW company.view_email_templates AS
+   SELECT 
+       t.id,
+       t.name,
+       t.code,
+       t.subject,
+       t.body_html,
+       t.body_text,
+       t.variables,
+       t.description,
+       t.is_active,
+       u.email as created_by_email,
+       u.first_name || ' ' || u.last_name as created_by_name,
+       t.created_at,
+       t.updated_at
+   FROM company.email_templates t
+   LEFT JOIN auth.users u ON t.created_by = u.id;
+
+   COMMENT ON VIEW company.view_email_templates IS 'Email templates with creator information';
+
+   -- System settings view
+   DROP VIEW IF EXISTS company.view_system_settings;
+   CREATE VIEW company.view_system_settings AS
+   SELECT 
+       s.id,
+       s.category,
+       s.key,
+       s.value,
+       s.value_type,
+       s.description,
+       s.is_public,
+       u.email as modified_by,
+       s.updated_at
+   FROM company.system_settings s
+   LEFT JOIN auth.users u ON s.created_by = u.id;
+
+   COMMENT ON VIEW company.view_system_settings IS 'System settings with modified by information';
+
 END $$;

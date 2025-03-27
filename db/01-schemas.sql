@@ -73,6 +73,14 @@ BEGIN
         RAISE NOTICE 'Wialon schema created';
     END IF;
 
+    -- Create company schema
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.schemata WHERE schema_name = 'company'
+    ) THEN
+        CREATE SCHEMA company;
+        RAISE NOTICE 'Company schema created';
+    END IF;
+
     -- Grant usage to public
     GRANT USAGE ON SCHEMA auth TO PUBLIC;
     GRANT USAGE ON SCHEMA core TO PUBLIC;
@@ -83,4 +91,5 @@ BEGIN
     GRANT USAGE ON SCHEMA services TO PUBLIC;
     GRANT USAGE ON SCHEMA billing TO PUBLIC;
     GRANT USAGE ON SCHEMA wialon TO PUBLIC;
+    GRANT USAGE ON SCHEMA company TO PUBLIC;
 END $$;
