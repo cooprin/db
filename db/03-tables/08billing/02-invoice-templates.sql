@@ -26,28 +26,6 @@ BEGIN
         RAISE NOTICE 'Invoice templates table created';
     END IF;
 
-    -- Add trigger for update timestamp
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_trigger 
-        WHERE tgname = 'update_invoice_templates_timestamp'
-    ) THEN
-        CREATE TRIGGER update_invoice_templates_timestamp
-            BEFORE UPDATE ON billing.invoice_templates
-            FOR EACH ROW
-            EXECUTE FUNCTION core.update_timestamp();
-    END IF;
-
-    -- Add audit trigger
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_trigger 
-        WHERE tgname = 'audit_invoice_templates_changes'
-    ) THEN
-        CREATE TRIGGER audit_invoice_templates_changes
-            AFTER INSERT OR UPDATE OR DELETE ON billing.invoice_templates
-            FOR EACH ROW
-            EXECUTE FUNCTION audit.log_table_change();
-    END IF;
-
     -- Add column to invoices table to link to template if not exists
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns 
