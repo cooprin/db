@@ -170,7 +170,7 @@ BEGIN
     DECLARE
         current_year INTEGER;
         current_month INTEGER;
-        start_date DATE;
+        v_start_date DATE;  -- Змінено ім'я змінної, щоб уникнути конфлікту
         check_year INTEGER;
         check_month INTEGER;
         has_tariff BOOLEAN;
@@ -209,23 +209,25 @@ BEGIN
         END IF;
         
         -- Отримуємо дату першого призначення об'єкта клієнту
-        SELECT MIN(start_date) INTO first_ownership_date
-        FROM wialon.object_ownership_history
-        WHERE object_id = p_object_id;
+        -- Виправлено: використовуємо аліас колонки, щоб уникнути неоднозначності
+        SELECT MIN(oh.start_date) INTO first_ownership_date
+        FROM wialon.object_ownership_history oh
+        WHERE oh.object_id = p_object_id;
         
         -- Отримуємо дату початку активності об'єкта
-        SELECT MIN(start_date) INTO start_date                         
-        FROM wialon.object_status_history
-        WHERE object_id = p_object_id
-        AND status = 'active';
+        -- Виправлено: використовуємо аліас колонки, щоб уникнути неоднозначності
+        SELECT MIN(sh.start_date) INTO v_start_date
+        FROM wialon.object_status_history sh
+        WHERE sh.object_id = p_object_id
+        AND sh.status = 'active';
         
         -- Використовуємо пізнішу з дат
-        IF start_date IS NULL OR first_ownership_date > start_date THEN
-            start_date := first_ownership_date;
+        IF v_start_date IS NULL OR first_ownership_date > v_start_date THEN
+            v_start_date := first_ownership_date;
         END IF;
         
         -- Якщо немає активного статусу, повертаємо поточний місяць/рік
-        IF start_date IS NULL THEN
+        IF v_start_date IS NULL THEN
             billing_year := current_year;
             billing_month := current_month;
             RETURN NEXT;
@@ -233,8 +235,8 @@ BEGIN
         END IF;
         
         -- Починаємо пошук з дати початку активності об'єкта
-        check_year := EXTRACT(YEAR FROM start_date);
-        check_month := EXTRACT(MONTH FROM start_date);
+        check_year := EXTRACT(YEAR FROM v_start_date);
+        check_month := EXTRACT(MONTH FROM v_start_date);
         
         -- Перевіряємо всі місяці від початку активності до поточного
         WHILE (check_year < current_year OR 
@@ -243,19 +245,20 @@ BEGIN
             period_date := make_date(check_year, check_month, 1);
             
             -- Перевіряємо чи був об'єкт активний в цей період
+            -- Виправлено: використовуємо аліаси таблиць, щоб уникнути неоднозначності
             IF EXISTS (
                 SELECT 1 
-                FROM wialon.object_status_history
-                WHERE object_id = p_object_id
-                AND status = 'active'
-                AND start_date <= period_date
-                AND (end_date IS NULL OR end_date >= period_date)
+                FROM wialon.object_status_history sh
+                WHERE sh.object_id = p_object_id
+                AND sh.status = 'active'
+                AND sh.start_date <= period_date
+                AND (sh.end_date IS NULL OR sh.end_date >= period_date)
             ) AND EXISTS (
                 SELECT 1 
-                FROM billing.object_tariffs
-                WHERE object_id = p_object_id
-                AND effective_from <= period_date
-                AND (effective_to IS NULL OR effective_to >= period_date)
+                FROM billing.object_tariffs ot
+                WHERE ot.object_id = p_object_id
+                AND ot.effective_from <= period_date
+                AND (ot.effective_to IS NULL OR ot.effective_to >= period_date)
             ) THEN
                 -- Перевіряємо чи період оплачений
                 IF NOT billing.is_period_paid(p_object_id, check_year, check_month) THEN
