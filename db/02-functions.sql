@@ -417,43 +417,43 @@ BEGIN
         $func$;
 
         -- Function to safely get active Wialon token
-        CREATE OR REPLACE FUNCTION company.get_wialon_token()
-        RETURNS TABLE(
-            integration_id UUID,
-            api_url TEXT,
-            token_name TEXT,
-            decrypted_token TEXT,
-            sync_interval INTEGER,
-            additional_settings JSONB,
-            last_sync_time TIMESTAMP WITH TIME ZONE
-        )
-        LANGUAGE plpgsql
-        AS $func$
-        DECLARE
-            integration_record RECORD;
-        BEGIN
-            -- Get active integration
-            SELECT * INTO integration_record
-            FROM company.wialon_integration
-            WHERE is_active = true
-            ORDER BY created_at DESC
-            LIMIT 1;
-            
-            IF NOT FOUND THEN
-                RAISE EXCEPTION 'No active Wialon integration found';
-            END IF;
-            
-            -- Return decrypted data
-            RETURN QUERY SELECT
-                integration_record.id,
-                integration_record.api_url,
-                integration_record.token_name,
-                company.decrypt_wialon_token(integration_record.token_value),
-                integration_record.sync_interval,
-                integration_record.additional_settings,
-                integration_record.last_sync_time;
-        END;
-        $func$;
+    CREATE OR REPLACE FUNCTION company.get_wialon_token()
+    RETURNS TABLE(
+        integration_id UUID,
+        api_url VARCHAR(255),        -- Змінено з TEXT на VARCHAR(255)
+        token_name VARCHAR(255),     -- Змінено з TEXT на VARCHAR(255)
+        decrypted_token TEXT,
+        sync_interval INTEGER,
+        additional_settings JSONB,
+        last_sync_time TIMESTAMP WITH TIME ZONE
+    )
+    LANGUAGE plpgsql
+    AS $func$
+    DECLARE
+        integration_record RECORD;
+    BEGIN
+        -- Get active integration
+        SELECT * INTO integration_record
+        FROM company.wialon_integration
+        WHERE is_active = true
+        ORDER BY created_at DESC
+        LIMIT 1;
+        
+        IF NOT FOUND THEN
+            RAISE EXCEPTION 'No active Wialon integration found';
+        END IF;
+        
+        -- Return decrypted data
+        RETURN QUERY SELECT
+            integration_record.id,
+            integration_record.api_url,
+            integration_record.token_name,
+            company.decrypt_wialon_token(integration_record.token_value),
+            integration_record.sync_interval,
+            integration_record.additional_settings,
+            integration_record.last_sync_time;
+    END;
+    $func$;
 
         -- Function to update last sync time
         CREATE OR REPLACE FUNCTION company.update_wialon_sync_time()
