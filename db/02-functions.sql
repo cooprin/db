@@ -471,11 +471,13 @@ BEGIN
     END;
     $func$;
         -- Function to safely get active Wialon token
-    CREATE OR REPLACE FUNCTION company.get_wialon_token()
+    CREATE OR REPLACE FUNCTION company.get_wialon_token(
+        p_encryption_key TEXT DEFAULT NULL  -- Додаємо параметр ключа
+    )
     RETURNS TABLE(
         integration_id UUID,
-        api_url VARCHAR(255),        -- Змінено з TEXT на VARCHAR(255)
-        token_name VARCHAR(255),     -- Змінено з TEXT на VARCHAR(255)
+        api_url VARCHAR(255),
+        token_name VARCHAR(255),
         decrypted_token TEXT,
         sync_interval INTEGER,
         additional_settings JSONB,
@@ -486,7 +488,7 @@ BEGIN
     DECLARE
         integration_record RECORD;
     BEGIN
-        -- Get active integration
+        -- Отримуємо активну інтеграцію
         SELECT * INTO integration_record
         FROM company.wialon_integration
         WHERE is_active = true
@@ -497,12 +499,12 @@ BEGIN
             RAISE EXCEPTION 'No active Wialon integration found';
         END IF;
         
-        -- Return decrypted data
+        -- Повертаємо розшифровані дані з передачею ключа
         RETURN QUERY SELECT
             integration_record.id,
             integration_record.api_url,
             integration_record.token_name,
-            company.decrypt_wialon_token(integration_record.token_value),
+            company.decrypt_wialon_token(integration_record.token_value, p_encryption_key),  -- Передаємо ключ
             integration_record.sync_interval,
             integration_record.additional_settings,
             integration_record.last_sync_time;
