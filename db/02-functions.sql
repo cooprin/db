@@ -319,102 +319,48 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_proc WHERE proname = 'encrypt_wialon_token'
     ) THEN
-    -- Функція шифрування з параметром ключа
+-- Функція шифрування (тільки з переданим ключем)
     CREATE OR REPLACE FUNCTION company.encrypt_wialon_token(
         p_token_text TEXT,
-        p_encryption_key TEXT DEFAULT NULL
+        p_encryption_key TEXT
     )
     RETURNS TEXT
     LANGUAGE plpgsql
     AS $func$
     DECLARE
-        encryption_key TEXT;
         encrypted_token TEXT;
     BEGIN
-        -- Якщо ключ передано як параметр, використовуємо його
-        IF p_encryption_key IS NOT NULL THEN
-            encryption_key := p_encryption_key;
-        ELSE
-            -- Якщо не передано, пробуємо отримати з налаштувань PostgreSQL
-            BEGIN
-                encryption_key := current_setting('wialon_encryption_key');
-            EXCEPTION 
-                WHEN undefined_object THEN
-                    -- Fallback: пробуємо через змінну оточення
-                    BEGIN
-                        COPY (SELECT '') TO PROGRAM 'echo $WIALON_ENCRYPTION_KEY > /tmp/wialon_key.txt';
-                        CREATE TEMP TABLE IF NOT EXISTS temp_key (key_value TEXT);
-                        COPY temp_key FROM '/tmp/wialon_key.txt';
-                        SELECT key_value INTO encryption_key FROM temp_key LIMIT 1;
-                        DROP TABLE IF EXISTS temp_key;
-                        EXECUTE 'rm -f /tmp/wialon_key.txt';
-                    EXCEPTION WHEN OTHERS THEN
-                        RAISE EXCEPTION 'WIALON_ENCRYPTION_KEY environment variable not set';
-                    END;
-            END;
-        END IF;
-        
-        -- Очищуємо ключ
-        encryption_key := trim(both E' \t\n\r' from encryption_key);
-        
-        -- Перевіряємо ключ
-        IF encryption_key IS NULL OR length(encryption_key) < 32 THEN
-            RAISE EXCEPTION 'WIALON_ENCRYPTION_KEY environment variable not set';
+        -- Перевіряємо чи передано ключ
+        IF p_encryption_key IS NULL OR length(p_encryption_key) < 32 THEN
+            RAISE EXCEPTION 'Encryption key is required and must be at least 32 characters';
         END IF;
         
         -- Шифруємо
-        encrypted_token := pgp_sym_encrypt(p_token_text, encryption_key);
+        encrypted_token := pgp_sym_encrypt(p_token_text, p_encryption_key);
         
         RETURN encrypted_token;
     END;
     $func$;
 
-    -- Функція розшифрування з параметром ключа
+    -- Функція розшифрування (тільки з переданим ключем)
     CREATE OR REPLACE FUNCTION company.decrypt_wialon_token(
         p_encrypted_token TEXT,
-        p_encryption_key TEXT DEFAULT NULL
+        p_encryption_key TEXT
     )
     RETURNS TEXT
     LANGUAGE plpgsql
     AS $func$
     DECLARE
-        encryption_key TEXT;
         decrypted_token TEXT;
     BEGIN
-        -- Якщо ключ передано як параметр, використовуємо його
-        IF p_encryption_key IS NOT NULL THEN
-            encryption_key := p_encryption_key;
-        ELSE
-            -- Якщо не передано, пробуємо отримати з налаштувань PostgreSQL
-            BEGIN
-                encryption_key := current_setting('wialon_encryption_key');
-            EXCEPTION 
-                WHEN undefined_object THEN
-                    -- Fallback: пробуємо через змінну оточення
-                    BEGIN
-                        COPY (SELECT '') TO PROGRAM 'echo $WIALON_ENCRYPTION_KEY > /tmp/wialon_key.txt';
-                        CREATE TEMP TABLE IF NOT EXISTS temp_key (key_value TEXT);
-                        COPY temp_key FROM '/tmp/wialon_key.txt';
-                        SELECT key_value INTO encryption_key FROM temp_key LIMIT 1;
-                        DROP TABLE IF EXISTS temp_key;
-                        EXECUTE 'rm -f /tmp/wialon_key.txt';
-                    EXCEPTION WHEN OTHERS THEN
-                        RAISE EXCEPTION 'WIALON_ENCRYPTION_KEY environment variable not set';
-                    END;
-            END;
-        END IF;
-        
-        -- Очищуємо ключ
-        encryption_key := trim(both E' \t\n\r' from encryption_key);
-        
-        -- Перевіряємо ключ
-        IF encryption_key IS NULL OR length(encryption_key) < 32 THEN
-            RAISE EXCEPTION 'WIALON_ENCRYPTION_KEY environment variable not set';
+        -- Перевіряємо чи передано ключ
+        IF p_encryption_key IS NULL OR length(p_encryption_key) < 32 THEN
+            RAISE EXCEPTION 'Encryption key is required and must be at least 32 characters';
         END IF;
         
         -- Розшифровуємо
         BEGIN
-            decrypted_token := pgp_sym_decrypt(p_encrypted_token, encryption_key);
+            decrypted_token := pgp_sym_decrypt(p_encrypted_token, p_encryption_key);
         EXCEPTION WHEN OTHERS THEN
             RAISE EXCEPTION 'Failed to decrypt Wialon token. Invalid encryption key or corrupted data.';
         END;
@@ -422,7 +368,7 @@ BEGIN
         RETURN decrypted_token;
     END;
     $func$;
-        -- Function to safely set Wialon token
+    -- Оновлена функція set_wialon_token (обов'язковий ключ)
     CREATE OR REPLACE FUNCTION company.set_wialon_token(
         p_api_url TEXT,
         p_token_name TEXT,
@@ -430,7 +376,7 @@ BEGIN
         p_sync_interval INTEGER DEFAULT 60,
         p_additional_settings JSONB DEFAULT '{}',
         p_user_id UUID DEFAULT NULL,
-        p_encryption_key TEXT DEFAULT NULL  -- ← ДОДАЙТЕ ЦЕЙ ПАРАМЕТР
+        p_encryption_key TEXT -- Обов'язковий параметр (без DEFAULT)
     )
     RETURNS UUID
     LANGUAGE plpgsql
@@ -440,7 +386,7 @@ BEGIN
         encrypted_token TEXT;
     BEGIN
         -- Шифруємо токен з переданим ключем
-        encrypted_token := company.encrypt_wialon_token(p_token_text, p_encryption_key);  -- ← ПЕРЕДАЙТЕ КЛЮЧ
+        encrypted_token := company.encrypt_wialon_token(p_token_text, p_encryption_key);
         
         -- Деактивуємо всі існуючі інтеграції
         UPDATE company.wialon_integration 
@@ -470,9 +416,9 @@ BEGIN
         RETURN integration_id;
     END;
     $func$;
-        -- Function to safely get active Wialon token
+    -- Оновлена функція get_wialon_token (обов'язковий ключ)
     CREATE OR REPLACE FUNCTION company.get_wialon_token(
-        p_encryption_key TEXT DEFAULT NULL  -- Додаємо параметр ключа
+        p_encryption_key TEXT -- Обов'язковий параметр (без DEFAULT)
     )
     RETURNS TABLE(
         integration_id UUID,
@@ -499,12 +445,12 @@ BEGIN
             RAISE EXCEPTION 'No active Wialon integration found';
         END IF;
         
-        -- Повертаємо розшифровані дані з передачею ключа
+        -- Повертаємо розшифровані дані з обов'язковою передачею ключа
         RETURN QUERY SELECT
             integration_record.id,
             integration_record.api_url,
             integration_record.token_name,
-            company.decrypt_wialon_token(integration_record.token_value, p_encryption_key),  -- Передаємо ключ
+            company.decrypt_wialon_token(integration_record.token_value, p_encryption_key),
             integration_record.sync_interval,
             integration_record.additional_settings,
             integration_record.last_sync_time;
