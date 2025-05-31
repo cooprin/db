@@ -373,10 +373,10 @@ BEGIN
         p_api_url TEXT,
         p_token_name TEXT,
         p_token_text TEXT,
+        p_encryption_key TEXT,              -- Перемістили ПЕРЕД параметри з DEFAULT
         p_sync_interval INTEGER DEFAULT 60,
         p_additional_settings JSONB DEFAULT '{}',
-        p_user_id UUID DEFAULT NULL,
-        p_encryption_key TEXT -- Обов'язковий параметр (без DEFAULT)
+        p_user_id UUID DEFAULT NULL
     )
     RETURNS UUID
     LANGUAGE plpgsql
