@@ -1015,7 +1015,6 @@ BEGIN
            EXECUTE FUNCTION core.update_timestamp();
    END IF;
 
-END;
 -- Wialon_sync schema triggers
    IF NOT EXISTS (
        SELECT 1 FROM pg_trigger 
@@ -1087,4 +1086,7 @@ END;
            FOR EACH ROW
            EXECUTE FUNCTION audit.log_table_change();
    END IF;
+
+END;
+
 $$;
