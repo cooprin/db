@@ -319,55 +319,97 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_proc WHERE proname = 'encrypt_wialon_token'
     ) THEN
-        -- Function to encrypt Wialon token
-        CREATE OR REPLACE FUNCTION company.encrypt_wialon_token(
-            p_token_text TEXT
-        )
-        RETURNS TEXT
-        LANGUAGE plpgsql
-        AS $func$
-        DECLARE
-            encryption_key TEXT;
-            encrypted_token TEXT;
+-- Function to encrypt Wialon token (REVERSIBLE)
+    CREATE OR REPLACE FUNCTION company.encrypt_wialon_token(
+        p_token_text TEXT
+    )
+    RETURNS TEXT
+    LANGUAGE plpgsql
+    AS $func$
+    DECLARE
+        encryption_key TEXT;
+        encrypted_token TEXT;
+    BEGIN
+        -- Try to get encryption key from PostgreSQL configuration
         BEGIN
-            -- Try to get encryption key from PostgreSQL configuration
-            BEGIN
-                encryption_key := current_setting('wialon_encryption_key');
-            EXCEPTION 
-                WHEN undefined_object THEN
-                    -- Fallback: use the key from environment (hardcoded for now)
-                    encryption_key := '2Td7tAVb7Jzsg7Hku79D5j46M4GbkPB7';
-            END;
-            
-            -- Clean up the key (remove newlines/spaces)
-            encryption_key := trim(both E' \t\n\r' from encryption_key);
-            
-            -- Validate encryption key
-            IF encryption_key IS NULL OR length(encryption_key) < 32 THEN
-                RAISE EXCEPTION 'WIALON_ENCRYPTION_KEY environment variable not set';
-            END IF;
-            
-            -- Simple encryption using SHA256 + base64
-            encrypted_token := encode(digest(p_token_text || encryption_key, 'sha256'), 'base64');
-            
-            RETURN encrypted_token;
+            encryption_key := current_setting('wialon_encryption_key');
+        EXCEPTION 
+            WHEN undefined_object THEN
+                -- Fallback: try to read from environment using a shell command
+                BEGIN
+                    COPY (SELECT '') TO PROGRAM 'echo $WIALON_ENCRYPTION_KEY > /tmp/wialon_key.txt';
+                    CREATE TEMP TABLE IF NOT EXISTS temp_key (key_value TEXT);
+                    COPY temp_key FROM '/tmp/wialon_key.txt';
+                    SELECT key_value INTO encryption_key FROM temp_key LIMIT 1;
+                    DROP TABLE IF EXISTS temp_key;
+                    EXECUTE 'rm -f /tmp/wialon_key.txt';
+                EXCEPTION WHEN OTHERS THEN
+                    RAISE EXCEPTION 'WIALON_ENCRYPTION_KEY environment variable not set';
+                END;
         END;
-        $func$;
+        
+        -- Clean up the key (remove newlines/spaces)
+        encryption_key := trim(both E' \t\n\r' from encryption_key);
+        
+        -- Validate encryption key
+        IF encryption_key IS NULL OR length(encryption_key) < 32 THEN
+            RAISE EXCEPTION 'WIALON_ENCRYPTION_KEY environment variable not set';
+        END IF;
+        
+        -- Use pgcrypto for reversible encryption
+        encrypted_token := pgp_sym_encrypt(p_token_text, encryption_key);
+        
+        RETURN encrypted_token;
+    END;
+    $func$;
 
-        -- Function to decrypt Wialon token (simplified for testing)
-        CREATE OR REPLACE FUNCTION company.decrypt_wialon_token(
-            p_encrypted_token TEXT
-        )
-        RETURNS TEXT
-        LANGUAGE plpgsql
-        AS $func$
+    -- Function to decrypt Wialon token (REVERSIBLE)
+    CREATE OR REPLACE FUNCTION company.decrypt_wialon_token(
+        p_encrypted_token TEXT
+    )
+    RETURNS TEXT
+    LANGUAGE plpgsql
+    AS $func$
+    DECLARE
+        encryption_key TEXT;
+        decrypted_token TEXT;
+    BEGIN
+        -- Try to get encryption key from PostgreSQL configuration
         BEGIN
-            -- For now, return placeholder since we're using one-way hashing
-            -- In production, you'd want reversible encryption
-            RETURN 'token_decrypted_successfully';
+            encryption_key := current_setting('wialon_encryption_key');
+        EXCEPTION 
+            WHEN undefined_object THEN
+                -- Fallback: try to read from environment using a shell command
+                BEGIN
+                    COPY (SELECT '') TO PROGRAM 'echo $WIALON_ENCRYPTION_KEY > /tmp/wialon_key.txt';
+                    CREATE TEMP TABLE IF NOT EXISTS temp_key (key_value TEXT);
+                    COPY temp_key FROM '/tmp/wialon_key.txt';
+                    SELECT key_value INTO encryption_key FROM temp_key LIMIT 1;
+                    DROP TABLE IF EXISTS temp_key;
+                    EXECUTE 'rm -f /tmp/wialon_key.txt';
+                EXCEPTION WHEN OTHERS THEN
+                    RAISE EXCEPTION 'WIALON_ENCRYPTION_KEY environment variable not set';
+                END;
         END;
-        $func$;
-
+        
+        -- Clean up the key (remove newlines/spaces)
+        encryption_key := trim(both E' \t\n\r' from encryption_key);
+        
+        -- Validate encryption key
+        IF encryption_key IS NULL OR length(encryption_key) < 32 THEN
+            RAISE EXCEPTION 'WIALON_ENCRYPTION_KEY environment variable not set';
+        END IF;
+        
+        -- Decrypt using pgcrypto
+        BEGIN
+            decrypted_token := pgp_sym_decrypt(p_encrypted_token, encryption_key);
+        EXCEPTION WHEN OTHERS THEN
+            RAISE EXCEPTION 'Failed to decrypt Wialon token. Invalid encryption key or corrupted data.';
+        END;
+        
+        RETURN decrypted_token;
+    END;
+    $func$;
         -- Function to safely set Wialon token
         CREATE OR REPLACE FUNCTION company.set_wialon_token(
             p_api_url TEXT,
