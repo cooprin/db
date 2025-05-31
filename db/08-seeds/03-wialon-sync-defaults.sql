@@ -19,7 +19,7 @@ BEGIN
             FROM wialon_sync.temp_wialon_clients twc
             JOIN clients.clients c ON twc.wialon_id = c.wialon_id
             WHERE LOWER(TRIM(twc.name)) != LOWER(TRIM(c.name))',
-            '{"sensitivity": "case_insensitive", "trim_spaces": true}',
+            '{"sensitivity": "case_insensitive", "trim_spaces": true}'::jsonb,
             10
         ),
         (
@@ -34,7 +34,7 @@ BEGIN
             FROM wialon_sync.temp_wialon_objects two
             JOIN wialon.objects o ON two.wialon_id = o.wialon_id
             WHERE LOWER(TRIM(two.name)) != LOWER(TRIM(o.name))',
-            '{"sensitivity": "case_insensitive", "trim_spaces": true}',
+            '{"sensitivity": "case_insensitive", "trim_spaces": true}'::jsonb,
             20
         ),
         (
@@ -50,7 +50,7 @@ BEGIN
             FROM wialon_sync.temp_wialon_clients twc
             LEFT JOIN clients.clients c ON twc.wialon_id = c.wialon_id
             WHERE c.id IS NULL',
-            '{"auto_suggest": true}',
+            '{"auto_suggest": true}'::jsonb,
             30
         ),
         (
@@ -69,7 +69,7 @@ BEGIN
             LEFT JOIN wialon.objects o ON two.wialon_id = o.wialon_id
             LEFT JOIN clients.clients c ON two.owner_wialon_id = c.wialon_id
             WHERE o.id IS NULL',
-            '{"auto_assign_to_existing_client": true}',
+            '{"auto_assign_to_existing_client": true}'::jsonb,
             40
         ),
         (
@@ -87,7 +87,7 @@ BEGIN
             JOIN clients.clients c_current ON o.client_id = c_current.id
             LEFT JOIN clients.clients c_wialon ON two.owner_wialon_id = c_wialon.wialon_id
             WHERE c_current.wialon_id != two.owner_wialon_id',
-            '{"require_confirmation": true}',
+            '{"require_confirmation": true}'::jsonb,
             50
         ),
         (
@@ -107,7 +107,7 @@ BEGIN
             LEFT JOIN products.product_type_characteristics ptc ON pcv.characteristic_id = ptc.id
             WHERE ptc.code = ''imei'' 
             AND (pcv.value IS NULL OR pcv.value != two.tracker_id)',
-            '{"characteristic_code": "imei", "product_types": ["tracker", "gps_device"]}',
+            '{"characteristic_code": "imei", "product_types": ["tracker", "gps_device"]}'::jsonb,
             60
         )
     ) AS v (name, description, rule_type, sql_query, parameters, execution_order)
@@ -122,26 +122,26 @@ BEGIN
         (
             'GPS Tracker',
             'tracker_id',
-            '{"characteristic_code": "imei", "product_type_codes": ["tracker", "gps_device"]}',
-            '{"required": true, "format": "numeric", "min_length": 15, "max_length": 15}'
+            '{"characteristic_code": "imei", "product_type_codes": ["tracker", "gps_device"]}'::jsonb,
+            '{"required": true, "format": "numeric", "min_length": 15, "max_length": 15}'::jsonb
         ),
         (
             'SIM Card Phone',
             'phone_numbers',
-            '{"characteristic_code": "phone_number", "product_type_codes": ["sim_card"]}',
-            '{"required": false, "format": "phone", "multiple": true}'
+            '{"characteristic_code": "phone_number", "product_type_codes": ["sim_card"]}'::jsonb,
+            '{"required": false, "format": "phone", "multiple": true}'::jsonb
         ),
         (
             'Device Name',
             'name',
-            '{"object_field": "name"}',
-            '{"required": true, "max_length": 255}'
+            '{"object_field": "name"}'::jsonb,
+            '{"required": true, "max_length": 255}'::jsonb
         ),
         (
             'Device Description',
             'description',
-            '{"object_field": "description"}',
-            '{"required": false, "max_length": 1000}'
+            '{"object_field": "description"}'::jsonb,
+            '{"required": false, "max_length": 1000}'::jsonb
         )
     ) AS v (equipment_name, wialon_field_name, system_field_mapping, validation_rules)
     WHERE NOT EXISTS (
