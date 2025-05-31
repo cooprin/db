@@ -497,7 +497,61 @@ END IF;
         CREATE INDEX idx_system_settings_category ON company.system_settings(category);
     END IF;
 
-   
+    -- Wialon_sync schema indexes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'wialon_sync' 
+        AND tablename = 'sync_sessions' 
+        AND indexname = 'idx_sync_sessions_status'
+    ) THEN
+        CREATE INDEX idx_sync_sessions_status ON wialon_sync.sync_sessions(status);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'wialon_sync' 
+        AND tablename = 'sync_sessions' 
+        AND indexname = 'idx_sync_sessions_created_by'
+    ) THEN
+        CREATE INDEX idx_sync_sessions_created_by ON wialon_sync.sync_sessions(created_by);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'wialon_sync' 
+        AND tablename = 'sync_discrepancies' 
+        AND indexname = 'idx_sync_discrepancies_type_status'
+    ) THEN
+        CREATE INDEX idx_sync_discrepancies_type_status ON wialon_sync.sync_discrepancies(discrepancy_type, status);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'wialon_sync' 
+        AND tablename = 'sync_discrepancies' 
+        AND indexname = 'idx_sync_discrepancies_system_client'
+    ) THEN
+        CREATE INDEX idx_sync_discrepancies_system_client ON wialon_sync.sync_discrepancies(system_client_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'wialon_sync' 
+        AND tablename = 'sync_discrepancies' 
+        AND indexname = 'idx_sync_discrepancies_system_object'
+    ) THEN
+        CREATE INDEX idx_sync_discrepancies_system_object ON wialon_sync.sync_discrepancies(system_object_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'wialon_sync' 
+        AND tablename = 'sync_logs' 
+        AND indexname = 'idx_sync_logs_level_created'
+    ) THEN
+        CREATE INDEX idx_sync_logs_level_created ON wialon_sync.sync_logs(log_level, created_at);
+    END IF;
+
 
     -- Grant privileges
     -- Auth schema
@@ -550,5 +604,9 @@ END IF;
     GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA company TO current_user;
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA company TO current_user;
 
+    -- Grant privileges for wialon_sync schema
+    GRANT USAGE ON SCHEMA wialon_sync TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA wialon_sync TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA wialon_sync TO current_user;
 
 END $$;

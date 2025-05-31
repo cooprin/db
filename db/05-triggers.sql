@@ -1016,4 +1016,75 @@ BEGIN
    END IF;
 
 END;
+-- Wialon_sync schema triggers
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_sync_sessions_timestamp'
+   ) THEN
+       CREATE TRIGGER update_sync_sessions_timestamp
+           BEFORE UPDATE ON wialon_sync.sync_sessions
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_sync_rules_timestamp'
+   ) THEN
+       CREATE TRIGGER update_sync_rules_timestamp
+           BEFORE UPDATE ON wialon_sync.sync_rules
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_equipment_mapping_timestamp'
+   ) THEN
+       CREATE TRIGGER update_equipment_mapping_timestamp
+           BEFORE UPDATE ON wialon_sync.equipment_mapping
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   -- Audit triggers for Wialon_sync schema
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_sync_sessions_changes'
+   ) THEN
+       CREATE TRIGGER audit_sync_sessions_changes
+           AFTER INSERT OR UPDATE OR DELETE ON wialon_sync.sync_sessions
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_sync_discrepancies_changes'
+   ) THEN
+       CREATE TRIGGER audit_sync_discrepancies_changes
+           AFTER INSERT OR UPDATE OR DELETE ON wialon_sync.sync_discrepancies
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_sync_rules_changes'
+   ) THEN
+       CREATE TRIGGER audit_sync_rules_changes
+           AFTER INSERT OR UPDATE OR DELETE ON wialon_sync.sync_rules
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_equipment_mapping_changes'
+   ) THEN
+       CREATE TRIGGER audit_equipment_mapping_changes
+           AFTER INSERT OR UPDATE OR DELETE ON wialon_sync.equipment_mapping
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
 $$;

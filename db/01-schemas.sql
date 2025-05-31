@@ -80,6 +80,13 @@ BEGIN
         CREATE SCHEMA company;
         RAISE NOTICE 'Company schema created';
     END IF;
+        -- Create wialon_sync schema
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.schemata WHERE schema_name = 'wialon_sync'
+    ) THEN
+        CREATE SCHEMA wialon_sync;
+        RAISE NOTICE 'Wialon_sync schema created';
+    END IF;
 
     -- Grant usage to public
     GRANT USAGE ON SCHEMA auth TO PUBLIC;
@@ -92,4 +99,5 @@ BEGIN
     GRANT USAGE ON SCHEMA billing TO PUBLIC;
     GRANT USAGE ON SCHEMA wialon TO PUBLIC;
     GRANT USAGE ON SCHEMA company TO PUBLIC;
+    GRANT USAGE ON SCHEMA wialon_sync TO PUBLIC;
 END $$;

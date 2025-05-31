@@ -649,4 +649,135 @@ BEGIN
 
    COMMENT ON VIEW company.view_system_settings IS 'System settings with modified by information';
 
+-- Wialon sync sessions view with details
+   DROP VIEW IF EXISTS wialon_sync.view_sync_sessions_full;
+   CREATE VIEW wialon_sync.view_sync_sessions_full AS
+   SELECT 
+       ss.id,
+       ss.start_time,
+       ss.end_time,
+       ss.status,
+       ss.total_clients_checked,
+       ss.total_objects_checked,
+       ss.discrepancies_found,
+       EXTRACT(EPOCH FROM (COALESCE(ss.end_time, CURRENT_TIMESTAMP) - ss.start_time)) as duration_seconds,
+       u.email as created_by_email,
+       u.first_name || ' ' || u.last_name as created_by_name,
+       COUNT(DISTINCT sd.id) as total_discrepancies,
+       COUNT(DISTINCT CASE WHEN sd.status = 'pending' THEN sd.id END) as pending_discrepancies,
+       COUNT(DISTINCT CASE WHEN sd.status = 'approved' THEN sd.id END) as approved_discrepancies,
+       ss.created_at,
+       ss.updated_at
+   FROM wialon_sync.sync_sessions ss
+   LEFT JOIN auth.users u ON ss.created_by = u.id
+   LEFT JOIN wialon_sync.sync_discrepancies sd ON ss.id = sd.session_id
+   GROUP BY ss.id, u.email, u.first_name, u.last_name
+   ORDER BY ss.created_at DESC;
+
+   COMMENT ON VIEW wialon_sync.view_sync_sessions_full IS 'Detailed sync sessions with statistics';
+
+   -- Sync discrepancies view with related data
+   DROP VIEW IF EXISTS wialon_sync.view_sync_discrepancies_full;
+   CREATE VIEW wialon_sync.view_sync_discrepancies_full AS
+   SELECT 
+       sd.id,
+       sd.session_id,
+       sd.discrepancy_type,
+       sd.entity_type,
+       sd.status,
+       sd.wialon_entity_data,
+       sd.system_entity_data,
+       sd.suggested_action,
+       sc.id as system_client_id,
+       sc.name as system_client_name,
+       so.id as system_object_id,
+       so.name as system_object_name,
+       sug_c.id as suggested_client_id,
+       sug_c.name as suggested_client_name,
+       sd.resolution_notes,
+       res_u.email as resolved_by_email,
+       res_u.first_name || ' ' || res_u.last_name as resolved_by_name,
+       sd.resolved_at,
+       ss.start_time as session_start,
+       ss.status as session_status,
+       sd.created_at
+   FROM wialon_sync.sync_discrepancies sd
+   JOIN wialon_sync.sync_sessions ss ON sd.session_id = ss.id
+   LEFT JOIN clients.clients sc ON sd.system_client_id = sc.id
+   LEFT JOIN wialon.objects so ON sd.system_object_id = so.id
+   LEFT JOIN clients.clients sug_c ON sd.suggested_client_id = sug_c.id
+   LEFT JOIN auth.users res_u ON sd.resolved_by = res_u.id
+   ORDER BY sd.created_at DESC;
+
+   COMMENT ON VIEW wialon_sync.view_sync_discrepancies_full IS 'Detailed sync discrepancies with related entity information';
+
+   -- Active sync rules view
+   DROP VIEW IF EXISTS wialon_sync.view_sync_rules_active;
+   CREATE VIEW wialon_sync.view_sync_rules_active AS
+   SELECT 
+       sr.id,
+       sr.name,
+       sr.description,
+       sr.rule_type,
+       sr.sql_query,
+       sr.parameters,
+       sr.execution_order,
+       u.email as created_by_email,
+       u.first_name || ' ' || u.last_name as created_by_name,
+       COUNT(sre.id) as total_executions,
+       MAX(sre.execution_start) as last_execution,
+       sr.created_at,
+       sr.updated_at
+   FROM wialon_sync.sync_rules sr
+   LEFT JOIN auth.users u ON sr.created_by = u.id
+   LEFT JOIN wialon_sync.sync_rule_executions sre ON sr.id = sre.rule_id
+   WHERE sr.is_active = true
+   GROUP BY sr.id, u.email, u.first_name, u.last_name
+   ORDER BY sr.execution_order, sr.name;
+
+   COMMENT ON VIEW wialon_sync.view_sync_rules_active IS 'Active synchronization rules with execution statistics';
+
+   -- Equipment mapping view
+   DROP VIEW IF EXISTS wialon_sync.view_equipment_mapping_full;
+   CREATE VIEW wialon_sync.view_equipment_mapping_full AS
+   SELECT 
+       em.id,
+       em.equipment_name,
+       em.wialon_field_name,
+       em.system_field_mapping,
+       em.validation_rules,
+       em.is_active,
+       pt.id as product_type_id,
+       pt.name as product_type_name,
+       pt.code as product_type_code,
+       u.email as created_by_email,
+       u.first_name || ' ' || u.last_name as created_by_name,
+       em.created_at,
+       em.updated_at
+   FROM wialon_sync.equipment_mapping em
+   LEFT JOIN products.product_types pt ON em.product_type_id = pt.id
+   LEFT JOIN auth.users u ON em.created_by = u.id
+   ORDER BY em.equipment_name;
+
+   COMMENT ON VIEW wialon_sync.view_equipment_mapping_full IS 'Equipment mapping with product type details';
+
+   -- Recent sync logs view
+   DROP VIEW IF EXISTS wialon_sync.view_sync_logs_recent;
+   CREATE VIEW wialon_sync.view_sync_logs_recent AS
+   SELECT 
+       sl.id,
+       sl.session_id,
+       sl.log_level,
+       sl.message,
+       sl.details,
+       sl.created_at,
+       ss.status as session_status,
+       ss.start_time as session_start
+   FROM wialon_sync.sync_logs sl
+   JOIN wialon_sync.sync_sessions ss ON sl.session_id = ss.id
+   WHERE sl.created_at >= CURRENT_DATE - INTERVAL '30 days'
+   ORDER BY sl.created_at DESC;
+
+   COMMENT ON VIEW wialon_sync.view_sync_logs_recent IS 'Recent sync logs from last 30 days';
+
 END $$;

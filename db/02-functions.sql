@@ -170,11 +170,12 @@ BEGIN
     DECLARE
         current_year INTEGER;
         current_month INTEGER;
-        v_start_date DATE;  -- Змінено ім'я змінної, щоб уникнути конфлікту
+        v_start_date DATE;  -- Перейменовано змінну для уникнення конфлікту
         check_year INTEGER;
         check_month INTEGER;
         has_tariff BOOLEAN;
         period_date DATE;
+        mid_month_date DATE;  -- Додано змінну для середини місяця
         first_ownership_date DATE;
         object_status VARCHAR(50);
     BEGIN
@@ -209,14 +210,12 @@ BEGIN
         END IF;
         
         -- Отримуємо дату першого призначення об'єкта клієнту
-        -- Виправлено: використовуємо аліас колонки, щоб уникнути неоднозначності
         SELECT MIN(oh.start_date) INTO first_ownership_date
         FROM wialon.object_ownership_history oh
         WHERE oh.object_id = p_object_id;
         
         -- Отримуємо дату початку активності об'єкта
-        -- Виправлено: використовуємо аліас колонки, щоб уникнути неоднозначності
-        SELECT MIN(sh.start_date) INTO v_start_date
+        SELECT MIN(sh.start_date) INTO v_start_date                         
         FROM wialon.object_status_history sh
         WHERE sh.object_id = p_object_id
         AND sh.status = 'active';
@@ -243,16 +242,17 @@ BEGIN
             (check_year = current_year AND check_month <= current_month))
         LOOP
             period_date := make_date(check_year, check_month, 1);
+            mid_month_date := make_date(check_year, check_month, 15);  -- 15-е число місяця
             
             -- Перевіряємо чи був об'єкт активний в цей період
-            -- Виправлено: використовуємо аліаси таблиць, щоб уникнути неоднозначності
+            -- Об'єкт повинен бути активований до 15-го числа
             IF EXISTS (
                 SELECT 1 
                 FROM wialon.object_status_history sh
                 WHERE sh.object_id = p_object_id
                 AND sh.status = 'active'
-                AND sh.start_date <= period_date
-                AND (sh.end_date IS NULL OR sh.end_date >= period_date)
+                AND sh.start_date < mid_month_date  -- Активація до 15-го числа
+                AND (sh.end_date IS NULL OR sh.end_date >= period_date)  -- Об'єкт залишався активним принаймні на початок місяця
             ) AND EXISTS (
                 SELECT 1 
                 FROM billing.object_tariffs ot
@@ -314,4 +314,175 @@ BEGIN
     END;
     $func$;
     END IF;
+-- Wialon token encryption functions
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE proname = 'encrypt_wialon_token'
+    ) THEN
+        -- Function to encrypt Wialon token
+        CREATE OR REPLACE FUNCTION company.encrypt_wialon_token(
+            p_token_text TEXT
+        )
+        RETURNS TEXT
+        LANGUAGE plpgsql
+        AS $func$
+        DECLARE
+            encryption_key TEXT;
+            encrypted_token TEXT;
+        BEGIN
+            -- Get encryption key from environment variable
+            BEGIN
+                encryption_key := current_setting('WIALON_ENCRYPTION_KEY', false);
+            EXCEPTION WHEN OTHERS THEN
+                RAISE EXCEPTION 'WIALON_ENCRYPTION_KEY environment variable not set';
+            END;
+            
+            -- Validate encryption key
+            IF encryption_key IS NULL OR length(encryption_key) < 32 THEN
+                RAISE EXCEPTION 'WIALON_ENCRYPTION_KEY must be at least 32 characters long';
+            END IF;
+            
+            -- Encrypt the token
+            encrypted_token := pgp_sym_encrypt(p_token_text, encryption_key);
+            
+            RETURN encrypted_token;
+        END;
+        $func$;
+
+        -- Function to decrypt Wialon token
+        CREATE OR REPLACE FUNCTION company.decrypt_wialon_token(
+            p_encrypted_token TEXT
+        )
+        RETURNS TEXT
+        LANGUAGE plpgsql
+        AS $func$
+        DECLARE
+            encryption_key TEXT;
+            decrypted_token TEXT;
+        BEGIN
+            -- Get encryption key from environment variable
+            BEGIN
+                encryption_key := current_setting('WIALON_ENCRYPTION_KEY', false);
+            EXCEPTION WHEN OTHERS THEN
+                RAISE EXCEPTION 'WIALON_ENCRYPTION_KEY environment variable not set';
+            END;
+            
+            -- Validate encryption key
+            IF encryption_key IS NULL OR length(encryption_key) < 32 THEN
+                RAISE EXCEPTION 'WIALON_ENCRYPTION_KEY must be at least 32 characters long';
+            END IF;
+            
+            -- Decrypt the token
+            BEGIN
+                decrypted_token := pgp_sym_decrypt(p_encrypted_token, encryption_key);
+            EXCEPTION WHEN OTHERS THEN
+                RAISE EXCEPTION 'Failed to decrypt Wialon token. Invalid encryption key or corrupted data.';
+            END;
+            
+            RETURN decrypted_token;
+        END;
+        $func$;
+
+        -- Function to safely set Wialon token
+        CREATE OR REPLACE FUNCTION company.set_wialon_token(
+            p_api_url TEXT,
+            p_token_name TEXT,
+            p_token_text TEXT,
+            p_sync_interval INTEGER DEFAULT 60,
+            p_additional_settings JSONB DEFAULT '{}',
+            p_user_id UUID DEFAULT NULL
+        )
+        RETURNS UUID
+        LANGUAGE plpgsql
+        AS $func$
+        DECLARE
+            integration_id UUID;
+            encrypted_token TEXT;
+        BEGIN
+            -- Encrypt the token
+            encrypted_token := company.encrypt_wialon_token(p_token_text);
+            
+            -- Deactivate all existing integrations
+            UPDATE company.wialon_integration 
+            SET is_active = false, updated_at = CURRENT_TIMESTAMP;
+            
+            -- Insert new integration
+            INSERT INTO company.wialon_integration (
+                api_url,
+                token_name,
+                token_value,
+                encryption_method,
+                is_active,
+                sync_interval,
+                additional_settings,
+                created_by
+            ) VALUES (
+                p_api_url,
+                p_token_name,
+                encrypted_token,
+                'pgp_sym',
+                true,
+                p_sync_interval,
+                p_additional_settings,
+                p_user_id
+            ) RETURNING id INTO integration_id;
+            
+            RETURN integration_id;
+        END;
+        $func$;
+
+        -- Function to safely get active Wialon token
+        CREATE OR REPLACE FUNCTION company.get_wialon_token()
+        RETURNS TABLE(
+            integration_id UUID,
+            api_url TEXT,
+            token_name TEXT,
+            decrypted_token TEXT,
+            sync_interval INTEGER,
+            additional_settings JSONB,
+            last_sync_time TIMESTAMP WITH TIME ZONE
+        )
+        LANGUAGE plpgsql
+        AS $func$
+        DECLARE
+            integration_record RECORD;
+        BEGIN
+            -- Get active integration
+            SELECT * INTO integration_record
+            FROM company.wialon_integration
+            WHERE is_active = true
+            ORDER BY created_at DESC
+            LIMIT 1;
+            
+            IF NOT FOUND THEN
+                RAISE EXCEPTION 'No active Wialon integration found';
+            END IF;
+            
+            -- Return decrypted data
+            RETURN QUERY SELECT
+                integration_record.id,
+                integration_record.api_url,
+                integration_record.token_name,
+                company.decrypt_wialon_token(integration_record.token_value),
+                integration_record.sync_interval,
+                integration_record.additional_settings,
+                integration_record.last_sync_time;
+        END;
+        $func$;
+
+        -- Function to update last sync time
+        CREATE OR REPLACE FUNCTION company.update_wialon_sync_time()
+        RETURNS VOID
+        LANGUAGE plpgsql
+        AS $func$
+        BEGIN
+            UPDATE company.wialon_integration 
+            SET last_sync_time = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE is_active = true;
+        END;
+        $func$;
+
+        RAISE NOTICE 'Wialon token encryption functions created';
+    END IF;
+
 END $$;

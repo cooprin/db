@@ -93,7 +93,11 @@ BEGIN
         ('Wialon Integration', 'wialon_integration', 'module'),
         ('Email Settings', 'email_settings', 'module'),
         ('Email Templates', 'email_templates', 'table'),
-        ('System Settings', 'system_settings', 'module')
+        ('System Settings', 'system_settings', 'module'),
+        ('Wialon Sync', 'wialon_sync', 'module'),
+        ('Sync Sessions', 'sync_sessions', 'table'),
+        ('Sync Rules', 'sync_rules', 'table'),
+        ('Equipment Mapping', 'equipment_mapping', 'table')
     ) AS v (name, code, type)
     WHERE NOT EXISTS (
         SELECT 1 FROM core.resources

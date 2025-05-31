@@ -85,7 +85,7 @@ BEGIN
         RAISE NOTICE 'Legal documents table created';
     END IF;
 
-    -- Wialon integration settings
+-- Wialon integration settings
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.tables 
         WHERE table_schema = 'company' AND table_name = 'wialon_integration'
@@ -95,6 +95,7 @@ BEGIN
             api_url VARCHAR(255) NOT NULL,
             token_name VARCHAR(100) NOT NULL,
             token_value TEXT NOT NULL,
+            encryption_method VARCHAR(50) DEFAULT 'pgp_sym',
             is_active BOOLEAN DEFAULT true,
             last_sync_time TIMESTAMP WITH TIME ZONE,
             sync_interval INTEGER DEFAULT 60, -- in minutes
@@ -103,10 +104,13 @@ BEGIN
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_wialon_integration_user FOREIGN KEY (created_by) 
-                REFERENCES auth.users(id) ON DELETE SET NULL
+                REFERENCES auth.users(id) ON DELETE SET NULL,
+            CONSTRAINT chk_encryption_method CHECK (encryption_method IN ('pgp_sym', 'plain'))
         );
         
         COMMENT ON TABLE company.wialon_integration IS 'Wialon API integration settings';
+        COMMENT ON COLUMN company.wialon_integration.token_value IS 'Encrypted Wialon API token';
+        COMMENT ON COLUMN company.wialon_integration.encryption_method IS 'Method used for token encryption';
         RAISE NOTICE 'Wialon integration table created';
     END IF;
 
