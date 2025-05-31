@@ -177,7 +177,8 @@ BEGIN
         ('Payment Management', 'Permissions related to payment tracking'),
         ('Company Management', 'Permissions related to company settings and profile'),
         ('Email Management', 'Permissions related to email settings and templates'),
-        ('Integration Management', 'Permissions related to external systems integration')
+        ('Integration Management', 'Permissions related to external systems integration'),
+        ('Wialon Sync Management', 'Permissions for Wialon synchronization management')
     ) AS v (name, description)
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.permission_groups
