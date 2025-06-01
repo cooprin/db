@@ -319,7 +319,6 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_proc WHERE proname = 'encrypt_wialon_token'
     ) THEN
--- Функція шифрування (тільки з переданим ключем)
     CREATE OR REPLACE FUNCTION company.encrypt_wialon_token(
         p_token_text TEXT,
         p_encryption_key TEXT
@@ -328,21 +327,21 @@ BEGIN
     LANGUAGE plpgsql
     AS $func$
     DECLARE
-        encrypted_token TEXT;
+        encrypted_token BYTEA;
     BEGIN
         -- Перевіряємо чи передано ключ
         IF p_encryption_key IS NULL OR length(p_encryption_key) < 32 THEN
             RAISE EXCEPTION 'Encryption key is required and must be at least 32 characters';
         END IF;
         
-        -- Шифруємо
-        encrypted_token := pgp_sym_encrypt(p_token_text, p_encryption_key);
+        -- Шифруємо і конвертуємо в TEXT
+        encrypted_token := pgp_sym_encrypt(p_token_text::BYTEA, p_encryption_key);
         
-        RETURN encrypted_token;
+        RETURN encrypted_token::TEXT;
     END;
     $func$;
 
-    -- Функція розшифрування (тільки з переданим ключем)
+    -- Виправлена функція розшифрування
     CREATE OR REPLACE FUNCTION company.decrypt_wialon_token(
         p_encrypted_token TEXT,
         p_encryption_key TEXT
@@ -351,21 +350,21 @@ BEGIN
     LANGUAGE plpgsql
     AS $func$
     DECLARE
-        decrypted_token TEXT;
+        decrypted_token BYTEA;
     BEGIN
         -- Перевіряємо чи передано ключ
         IF p_encryption_key IS NULL OR length(p_encryption_key) < 32 THEN
             RAISE EXCEPTION 'Encryption key is required and must be at least 32 characters';
         END IF;
         
-        -- Розшифровуємо
+        -- Розшифровуємо з правильним кастингом типів
         BEGIN
-            decrypted_token := pgp_sym_decrypt(p_encrypted_token, p_encryption_key);
+            decrypted_token := pgp_sym_decrypt(p_encrypted_token::BYTEA, p_encryption_key);
         EXCEPTION WHEN OTHERS THEN
             RAISE EXCEPTION 'Failed to decrypt Wialon token. Invalid encryption key or corrupted data.';
         END;
         
-        RETURN decrypted_token;
+        RETURN decrypted_token::TEXT;
     END;
     $func$;
     -- Оновлена функція set_wialon_token (обов'язковий ключ)
