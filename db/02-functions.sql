@@ -329,15 +329,14 @@ BEGIN
     DECLARE
         encrypted_token BYTEA;
     BEGIN
-        -- Перевіряємо чи передано ключ
         IF p_encryption_key IS NULL OR length(p_encryption_key) < 32 THEN
             RAISE EXCEPTION 'Encryption key is required and must be at least 32 characters';
         END IF;
         
-        -- Шифруємо TEXT, результат BYTEA, конвертуємо в TEXT
         encrypted_token := pgp_sym_encrypt(p_token_text, p_encryption_key);
         
-        RETURN encrypted_token::TEXT;
+        -- Кодуємо в base64 замість ::TEXT
+        RETURN encode(encrypted_token, 'base64');
     END;
     $func$;
 
@@ -352,19 +351,19 @@ BEGIN
     DECLARE
         decrypted_token BYTEA;
     BEGIN
-        -- Перевіряємо чи передано ключ
         IF p_encryption_key IS NULL OR length(p_encryption_key) < 32 THEN
             RAISE EXCEPTION 'Encryption key is required and must be at least 32 characters';
         END IF;
         
-        -- Розшифровуємо: TEXT -> BYTEA, потім BYTEA -> TEXT
         BEGIN
-            decrypted_token := pgp_sym_decrypt(p_encrypted_token::BYTEA, p_encryption_key);
+            -- Декодуємо з base64 замість ::BYTEA
+            decrypted_token := pgp_sym_decrypt(decode(p_encrypted_token, 'base64'), p_encryption_key);
         EXCEPTION WHEN OTHERS THEN
             RAISE EXCEPTION 'Failed to decrypt Wialon token. Invalid encryption key or corrupted data.';
         END;
         
-        RETURN decrypted_token::TEXT;
+        -- Конвертуємо BYTEA в TEXT правильно
+        RETURN convert_from(decrypted_token, 'UTF8');
     END;
     $func$;
 
