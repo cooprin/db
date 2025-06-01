@@ -334,8 +334,8 @@ BEGIN
             RAISE EXCEPTION 'Encryption key is required and must be at least 32 characters';
         END IF;
         
-        -- Шифруємо і конвертуємо в TEXT
-        encrypted_token := pgp_sym_encrypt(p_token_text::BYTEA, p_encryption_key);
+        -- Шифруємо TEXT, результат BYTEA, конвертуємо в TEXT
+        encrypted_token := pgp_sym_encrypt(p_token_text, p_encryption_key);
         
         RETURN encrypted_token::TEXT;
     END;
@@ -357,7 +357,7 @@ BEGIN
             RAISE EXCEPTION 'Encryption key is required and must be at least 32 characters';
         END IF;
         
-        -- Розшифровуємо з правильним кастингом типів
+        -- Розшифровуємо: TEXT -> BYTEA, потім BYTEA -> TEXT
         BEGIN
             decrypted_token := pgp_sym_decrypt(p_encrypted_token::BYTEA, p_encryption_key);
         EXCEPTION WHEN OTHERS THEN
@@ -367,6 +367,7 @@ BEGIN
         RETURN decrypted_token::TEXT;
     END;
     $func$;
+
     -- Оновлена функція set_wialon_token (обов'язковий ключ)
     CREATE OR REPLACE FUNCTION company.set_wialon_token(
         p_api_url TEXT,
