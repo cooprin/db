@@ -230,7 +230,8 @@ BEGIN
             -- Company management permissions
             (pg.name = 'Company Management' AND r.code IN ('company_profile', 'bank_accounts', 'legal_documents', 'system_settings')) OR
             (pg.name = 'Email Management' AND r.code IN ('email_settings', 'email_templates')) OR
-            (pg.name = 'Integration Management' AND r.code IN ('wialon_integration'))
+            (pg.name = 'Integration Management' AND r.code IN ('wialon_integration')) OR
+            (pg.name = 'Wialon Sync Management' AND r.code IN ('wialon_sync', 'sync_sessions', 'sync_rules', 'equipment_mapping'))
     )
     INSERT INTO auth.permissions (
         group_id, 
@@ -474,6 +475,31 @@ BEGIN
         SELECT 1 FROM auth.role_permissions
         WHERE role_id = r.id AND permission_id = p.id
     );
+    -- Grant wialon sync permissions to admin role (додати цей блок)
+INSERT INTO auth.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM auth.roles r
+CROSS JOIN auth.permissions p
+JOIN auth.permission_groups pg ON p.group_id = pg.id
+WHERE r.name = 'admin'
+AND pg.name IN ('Wialon Sync Management')
+AND NOT EXISTS (
+    SELECT 1 FROM auth.role_permissions
+    WHERE role_id = r.id AND permission_id = p.id
+);
+
+-- Grant wialon sync permissions to company_manager role (додати цей блок)
+INSERT INTO auth.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM auth.roles r
+CROSS JOIN auth.permissions p
+JOIN auth.permission_groups pg ON p.group_id = pg.id
+WHERE r.name = 'company_manager'
+AND pg.name IN ('Wialon Sync Management')
+AND NOT EXISTS (
+    SELECT 1 FROM auth.role_permissions
+    WHERE role_id = r.id AND permission_id = p.id
+);
 
 END $$;
 
