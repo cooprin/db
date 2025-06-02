@@ -53,44 +53,23 @@ BEGIN
             '{"auto_suggest": true}'::jsonb,
             30
         ),
-        (
-            'New Objects Detection',
-            'Detect new objects from Wialon that don''t exist in system',
-            'object_mapping',
-            'SELECT 
-                two.wialon_id,
-                two.name,
-                two.description,
-                two.owner_wialon_id,
-                two.tracker_id,
-                two.phone_numbers,
-                c.id as suggested_client_id
-            FROM wialon_sync.temp_wialon_objects two
-            LEFT JOIN wialon.objects o ON two.wialon_id = o.wialon_id
-            LEFT JOIN clients.clients c ON two.owner_wialon_id = c.wialon_id
-            WHERE o.id IS NULL',
-            '{"auto_assign_to_existing_client": true}'::jsonb,
-            40
-        ),
-        (
-            'Object Owner Changes',
-            'Detect owner changes for existing objects',
-            'owner_validation',
-            'SELECT 
-                two.wialon_id,
-                two.owner_wialon_id as wialon_owner_id,
-                o.id as system_object_id,
-                o.client_id as current_client_id,
-                c_wialon.id as suggested_client_id
-            FROM wialon_sync.temp_wialon_objects two
-            JOIN wialon.objects o ON two.wialon_id = o.wialon_id
-            JOIN clients.clients c_current ON o.client_id = c_current.id
-            LEFT JOIN clients.clients c_wialon ON two.owner_wialon_id = c_wialon.wialon_id
-            WHERE c_current.wialon_id != two.owner_wialon_id',
-            '{"require_confirmation": true}'::jsonb,
-            50
-        ),
-        (
+            (
+                'New Objects Detection',
+                'Detect new objects from Wialon that don''t exist in system',
+                'object_mapping',
+                'SELECT 
+                    two.wialon_id,
+                    two.name,
+                    two.description,
+                    two.tracker_id,
+                    two.phone_numbers
+                FROM wialon_sync.temp_wialon_objects two
+                LEFT JOIN wialon.objects o ON two.wialon_id = o.wialon_id
+                WHERE o.id IS NULL',
+                '{"auto_suggest": true}'::jsonb,
+                40
+            ),
+         (
             'Tracker Equipment Check',
             'Check tracker equipment consistency with Wialon',
             'equipment_check',

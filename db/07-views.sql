@@ -712,17 +712,18 @@ BEGIN
    COMMENT ON VIEW wialon_sync.view_sync_discrepancies_full IS 'Detailed sync discrepancies with related entity information';
 
    -- Active sync rules view
-   DROP VIEW IF EXISTS wialon_sync.view_sync_rules_active;
-   CREATE VIEW wialon_sync.view_sync_rules_active AS
-   SELECT 
-       sr.id,
-       sr.name,
-       sr.description,
-       sr.rule_type,
-       sr.sql_query,
-       sr.parameters,
-       sr.execution_order,
-       u.email as created_by_email,
+    DROP VIEW IF EXISTS wialon_sync.view_sync_rules_active;
+    CREATE VIEW wialon_sync.view_sync_rules_active AS
+    SELECT 
+        sr.id,
+        sr.name,
+        sr.description,
+        sr.rule_type,
+        sr.sql_query,
+        sr.parameters,
+        sr.execution_order,
+        sr.is_active,
+        u.email as created_by_email,
        u.first_name || ' ' || u.last_name as created_by_name,
        COUNT(sre.id) as total_executions,
        MAX(sre.execution_start) as last_execution,
@@ -731,8 +732,7 @@ BEGIN
    FROM wialon_sync.sync_rules sr
    LEFT JOIN auth.users u ON sr.created_by = u.id
    LEFT JOIN wialon_sync.sync_rule_executions sre ON sr.id = sre.rule_id
-   WHERE sr.is_active = true
-   GROUP BY sr.id, u.email, u.first_name, u.last_name
+   GROUP BY sr.id, u.email, u.first_name, u.last_name, sr.is_active
    ORDER BY sr.execution_order, sr.name;
 
    COMMENT ON VIEW wialon_sync.view_sync_rules_active IS 'Active synchronization rules with execution statistics';
