@@ -21,10 +21,43 @@ BEGIN
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
         
+        -- Додаємо унікальні обмеження
+        ALTER TABLE clients.clients ADD CONSTRAINT clients_name_unique UNIQUE (name);
+        CREATE UNIQUE INDEX clients_email_unique ON clients.clients (email) 
+        WHERE email IS NOT NULL AND email != '';
+        
         COMMENT ON TABLE clients.clients IS 'Clients catalog';
         COMMENT ON COLUMN clients.clients.wialon_id IS 'ID of the client in Wialon system';
         COMMENT ON COLUMN clients.clients.wialon_username IS 'Username of the client in Wialon system';
-        RAISE NOTICE 'Clients table created';
+        RAISE NOTICE 'Clients table created with unique constraints';
+    END IF;
+
+    -- Перевіряємо чи існують обмеження для існуючої таблиці
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'clients' AND table_name = 'clients'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE table_schema = 'clients' 
+        AND table_name = 'clients' 
+        AND constraint_name = 'clients_name_unique'
+    ) THEN
+        ALTER TABLE clients.clients ADD CONSTRAINT clients_name_unique UNIQUE (name);
+        RAISE NOTICE 'Added unique constraint for client name';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'clients' AND table_name = 'clients'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'clients' 
+        AND tablename = 'clients' 
+        AND indexname = 'clients_email_unique'
+    ) THEN
+        CREATE UNIQUE INDEX clients_email_unique ON clients.clients (email) 
+        WHERE email IS NOT NULL AND email != '';
+        RAISE NOTICE 'Added unique index for client email';
     END IF;
 
     -- Client documents table
