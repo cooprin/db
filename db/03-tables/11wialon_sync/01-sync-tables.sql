@@ -58,7 +58,8 @@ BEGIN
                 REFERENCES auth.users(id) ON DELETE SET NULL,
             CONSTRAINT chk_discrepancy_type CHECK (discrepancy_type IN (
                 'new_client', 'new_object', 'client_name_changed', 'object_name_changed', 
-                'owner_changed', 'new_object_with_known_client', 'client_deleted', 'object_deleted'
+                'owner_changed', 'new_object_with_known_client', 'client_deleted', 'object_deleted',
+                'client_username_changed'
             )),
             CONSTRAINT chk_entity_type CHECK (entity_type IN ('client', 'object')),
             CONSTRAINT chk_discrepancy_status CHECK (status IN ('pending', 'approved', 'added', 'ignored', 'rejected'))
