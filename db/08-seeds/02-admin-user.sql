@@ -1,11 +1,8 @@
--- Оновлений файл створення admin користувача (замість 02-admin-user.sql)
--- Призначає користувачу роль admin з усіма правами
-
 -- Disable triggers temporarily for admin user creation
 SET session_replication_role = 'replica';
 
 -- Create default admin user and assign permissions
-DO $
+DO $$
 DECLARE
     admin_role_id UUID;
     admin_user_id UUID;
@@ -43,22 +40,11 @@ BEGIN
         INSERT INTO auth.user_roles (user_id, role_id)
         VALUES (admin_user_id, admin_role_id);
         
-        RAISE NOTICE 'Created admin user with email: cooprin@gmail.com and assigned admin role';
+        RAISE NOTICE 'Created admin user with admin role';
     ELSE
-        -- If user exists, update their role to admin
-        SELECT id INTO admin_user_id FROM auth.users WHERE email = 'cooprin@gmail.com';
-        
-        -- Remove existing roles
-        DELETE FROM auth.user_roles WHERE user_id = admin_user_id;
-        
-        -- Assign admin role
-        INSERT INTO auth.user_roles (user_id, role_id)
-        VALUES (admin_user_id, admin_role_id);
-        
-        RAISE NOTICE 'Updated existing admin user to admin role';
+        RAISE NOTICE 'Admin user already exists';
     END IF;
-
-END $;
+END $$;
 
 -- Re-enable triggers after admin user creation
 SET session_replication_role = 'origin';
