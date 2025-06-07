@@ -1,3 +1,6 @@
+-- Оптимізований файл ініціалізації прав (замість 01-default-data.sql)
+-- Створює тільки ті права, які реально використовуються в коді
+
 -- Grant privileges to current user
 DO $$
 BEGIN
@@ -12,6 +15,7 @@ BEGIN
     EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA billing TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA wialon TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA company TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON SCHEMA wialon_sync TO %I', current_user);
 
     -- Grant table permissions
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA auth TO %I', current_user);
@@ -24,6 +28,7 @@ BEGIN
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA billing TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA wialon TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA company TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA wialon_sync TO %I', current_user);
 
     -- Grant sequence permissions
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA auth TO %I', current_user);
@@ -36,9 +41,7 @@ BEGIN
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA billing TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA wialon TO %I', current_user);
     EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA company TO %I', current_user);
-
-    -- Grant execute permissions on core functions
-    EXECUTE format('GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA core TO %I', current_user);
+    EXECUTE format('GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA wialon_sync TO %I', current_user);
 END $$;
 
 -- Disable triggers temporarily for initial data load
@@ -47,459 +50,281 @@ SET session_replication_role = 'replica';
 -- Insert initial data
 DO $$
 BEGIN
-    -- Insert default resources if they don't exist
-    INSERT INTO core.resources (name, code, type) 
-    SELECT * FROM (VALUES
-        ('Users', 'users', 'table'),
-        ('Roles', 'roles', 'table'),
-        ('Permissions', 'permissions', 'module'),
-        ('Resources', 'resources', 'module'),
-        ('Audit', 'audit', 'module'),
-        ('System', 'system', 'module'),
-        ('Products', 'products', 'module'),
-        ('Manufacturers', 'manufacturers', 'table'),
-        ('Suppliers', 'suppliers', 'table'),
-        ('Models', 'models', 'table'),
-        ('Product Types', 'product_types', 'table'),
-        ('Product Characteristics', 'product_characteristics', 'module'),
-        ('Warehouses', 'warehouses', 'module'),
-        ('Stock', 'stock', 'module'),
-        ('Stock Movements', 'stock_movements', 'table'),
-        ('Reports', 'reports', 'module'),
-        ('Analytics', 'analytics', 'module'),
-        ('Warranty Management', 'warranty', 'module'),
-        ('Repair Management', 'repair', 'module'),
-        ('Notifications', 'notifications', 'module'),
-        ('Settings', 'settings', 'module'),
-        ('Documents', 'documents', 'module'),
-        ('Logs', 'logs', 'module'),
-        -- New resources
-        ('Clients', 'clients', 'module'),
-        ('Client Documents', 'client_documents', 'table'),
-        ('Client Contacts', 'client_contacts', 'table'),
-        ('Wialon Objects', 'wialon_objects', 'module'),
-        ('Object Ownership', 'object_ownership', 'table'),
-        ('Tariffs', 'tariffs', 'module'),
-        ('Object Tariffs', 'object_tariffs', 'table'),
-        ('Payments', 'payments', 'module'),
-        ('Services', 'services', 'module'),
-        ('Client Services', 'client_services', 'table'),
-        ('Invoices', 'invoices', 'module'),
-        ('Invoice Documents', 'invoice_documents', 'table'),
-        ('Billing', 'billing', 'module'),
-        ('Company Profile', 'company_profile', 'module'),
-        ('Bank Accounts', 'bank_accounts', 'table'),
-        ('Legal Documents', 'legal_documents', 'table'),
-        ('Wialon Integration', 'wialon_integration', 'module'),
-        ('Email Settings', 'email_settings', 'module'),
-        ('Email Templates', 'email_templates', 'table'),
-        ('System Settings', 'system_settings', 'module'),
-        ('Wialon Sync', 'wialon_sync', 'module'),
-        ('Sync Sessions', 'sync_sessions', 'table'),
-        ('Sync Rules', 'sync_rules', 'table'),
-        ('Equipment Mapping', 'equipment_mapping', 'table')
-    ) AS v (name, code, type)
-    WHERE NOT EXISTS (
-        SELECT 1 FROM core.resources
-        WHERE code = v.code
-    );
-
-    -- Insert default actions if they don't exist
-    INSERT INTO core.actions (name, code, description)
-    SELECT * FROM (VALUES
-        ('Create', 'create', 'Permission to create new records'),
-        ('Read', 'read', 'Permission to read records'),
-        ('Update', 'update', 'Permission to update records'),
-        ('Delete', 'delete', 'Permission to delete records'),
-        ('Manage', 'manage', 'Full management permission'),
-        ('Export', 'export', 'Permission to export data'),
-        ('Import', 'import', 'Permission to import data'),
-        ('Print', 'print', 'Permission to print documents'),
-        ('Approve', 'approve', 'Permission to approve operations'),
-        ('Cancel', 'cancel', 'Permission to cancel operations'),
-        ('Archive', 'archive', 'Permission to archive records'),
-        ('Restore', 'restore', 'Permission to restore archived records'),
-        ('Transfer', 'transfer', 'Permission to transfer items'),
-        ('Assign', 'assign', 'Permission to assign items or tasks'),
-        ('Configure', 'configure', 'Permission to configure settings'),
-        -- New actions
-        ('Bill', 'bill', 'Permission to create bills and invoices'),
-        ('Pay', 'pay', 'Permission to register payments')
-    ) AS v (name, code, description)
-    WHERE NOT EXISTS (
-        SELECT 1 FROM core.actions
-        WHERE code = v.code
-    );
-
-    -- Insert default resource actions
-    INSERT INTO core.resource_actions (resource_id, action_id, is_default)
-    SELECT r.id, a.id, true
-    FROM core.resources r
-    CROSS JOIN core.actions a
-    WHERE NOT EXISTS (
-        SELECT 1 FROM core.resource_actions
-        WHERE resource_id = r.id AND action_id = a.id
-    );
-
-    -- Insert permission groups if they don't exist
+    -- Insert permission groups (тільки потрібні)
     INSERT INTO auth.permission_groups (name, description)
     SELECT * FROM (VALUES
-        ('User Management', 'Permissions related to user management'),
-        ('Role Management', 'Permissions related to role management'),
-        ('Permission Management', 'Permissions related to permission management'),
-        ('Resource Management', 'Permissions related to resource management'),
-        ('System Management', 'System-level permissions'),
-        ('Product Management', 'Permissions related to product management'),
-        ('Product Type Management', 'Permissions related to product types and characteristics'),
-        ('Product Model Management', 'Permissions related to product models'),
-        ('Manufacturer Management', 'Permissions related to manufacturers'),
-        ('Supplier Management', 'Permissions related to suppliers'),
-        ('Warehouse Management', 'Permissions related to warehouse operations'),
-        ('Stock Management', 'Permissions related to stock operations'),
-        ('Stock Movement Management', 'Permissions related to stock movements and transfers'),
-        ('Warranty Management', 'Permissions related to warranty tracking and management'),
-        ('Repair Management', 'Permissions related to repair operations'),
-        ('Report Management', 'Permissions related to reporting'),
-        ('Analytics Access', 'Permissions related to analytics and dashboards'),
-        ('Document Management', 'Permissions related to document operations'),
-        ('Import Export Management', 'Permissions for import/export operations'),
-        ('Notification Management', 'Permissions related to notification settings'),
-        ('System Configuration', 'Permissions related to system configuration'),
-        ('Audit Log Access', 'Permissions related to audit log viewing'),
-        ('Archive Management', 'Permissions related to archiving and restoration'),
-        -- New permission groups
-        ('Client Management', 'Permissions related to client management'),
-        ('Wialon Object Management', 'Permissions related to Wialon objects'),
-        ('Tariff Management', 'Permissions related to tariff management'),
-        ('Service Management', 'Permissions related to service management'),
-        ('Billing Management', 'Permissions related to billing and finances'),
-        ('Invoice Management', 'Permissions related to invoice creation and management'),
-        ('Payment Management', 'Permissions related to payment tracking'),
-        ('Company Management', 'Permissions related to company settings and profile'),
-        ('Email Management', 'Permissions related to email settings and templates'),
-        ('Integration Management', 'Permissions related to external systems integration'),
-        ('Wialon Sync Management', 'Permissions for Wialon synchronization management')
+        ('System Management', 'System-level permissions (users, roles, permissions, audit)'),
+        ('Product Management', 'Product catalog and inventory management'),
+        ('Warehouse Management', 'Warehouse and stock operations'),
+        ('Client Management', 'Client and service management'),
+        ('Financial Management', 'Billing, invoices, payments, and company settings'),
+        ('Wialon Management', 'Wialon objects and integration'),
+        ('Resource Management', 'System resources and configuration')
     ) AS v (name, description)
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.permission_groups
         WHERE name = v.name
     );
 
-    -- Insert default permissions with conflict handling
-    WITH permission_data AS (
-        SELECT DISTINCT
-            pg.id as group_id,
-            r.id as resource_id,
-            r.code as resource_code,
-            a.code as action_code
-        FROM auth.permission_groups pg
-        CROSS JOIN core.resources r
-        CROSS JOIN core.actions a
-        WHERE 
-            (pg.name = 'User Management' AND r.code = 'users') OR
-            (pg.name = 'Role Management' AND r.code = 'roles') OR
-            (pg.name = 'Permission Management' AND r.code = 'permissions') OR
-            (pg.name = 'Resource Management' AND r.code = 'resources') OR
-            (pg.name = 'System Management' AND r.code IN ('audit', 'system')) OR
-            (pg.name = 'Product Management' AND r.code = 'products' AND pg.name = 'Product Management') OR
-            (pg.name = 'Product Type Management' AND r.code IN ('product_types', 'product_characteristics')) OR
-            (pg.name = 'Product Model Management' AND r.code = 'models') OR
-            (pg.name = 'Manufacturer Management' AND r.code = 'manufacturers') OR
-            (pg.name = 'Supplier Management' AND r.code = 'suppliers') OR
-            (pg.name = 'Warehouse Management' AND r.code = 'warehouses') OR
-            (pg.name = 'Stock Management' AND r.code = 'stock') OR
-            (pg.name = 'Stock Movement Management' AND r.code = 'stock_movements') OR
-            (pg.name = 'Warranty Management' AND r.code = 'warranty') OR
-            (pg.name = 'Repair Management' AND r.code = 'repair') OR
-            (pg.name = 'Report Management' AND r.code = 'reports') OR
-            (pg.name = 'Analytics Access' AND r.code = 'analytics') OR
-            (pg.name = 'Document Management' AND r.code = 'documents') OR
-            (pg.name = 'Import Export Management' AND r.code = 'products' AND pg.name = 'Import Export Management') OR
-            (pg.name = 'Notification Management' AND r.code = 'notifications') OR
-            (pg.name = 'System Configuration' AND r.code = 'settings') OR
-            (pg.name = 'Audit Log Access' AND r.code = 'logs') OR
-            (pg.name = 'Archive Management' AND r.code IN ('products', 'documents', 'stock_movements') AND pg.name = 'Archive Management') OR
-            -- New permissions mappings
-            (pg.name = 'Client Management' AND r.code IN ('clients', 'client_documents', 'client_contacts')) OR
-            (pg.name = 'Wialon Object Management' AND r.code IN ('wialon_objects', 'object_ownership')) OR
-            (pg.name = 'Tariff Management' AND r.code IN ('tariffs', 'object_tariffs')) OR
-            (pg.name = 'Service Management' AND r.code IN ('services', 'client_services')) OR
-            (pg.name = 'Billing Management' AND r.code IN ('billing', 'payments', 'invoices')) OR
-            (pg.name = 'Invoice Management' AND r.code IN ('invoices', 'invoice_documents')) OR
-            (pg.name = 'Payment Management' AND r.code = 'payments') OR
-            -- Company management permissions
-            (pg.name = 'Company Management' AND r.code IN ('company_profile', 'bank_accounts', 'legal_documents', 'system_settings')) OR
-            (pg.name = 'Email Management' AND r.code IN ('email_settings', 'email_templates')) OR
-            (pg.name = 'Integration Management' AND r.code IN ('wialon_integration')) OR
-            (pg.name = 'Wialon Sync Management' AND r.code IN ('wialon_sync', 'sync_sessions', 'sync_rules', 'equipment_mapping'))
-    )
-    INSERT INTO auth.permissions (
-        group_id, 
-        resource_id, 
-        name, 
-        code, 
-        is_system
-    )
-    SELECT DISTINCT
-        pd.group_id,
-        pd.resource_id,
-        pd.resource_code || '.' || pd.action_code as name,
-        pd.resource_code || '.' || pd.action_code as code,
-        true
-    FROM permission_data pd
-    WHERE NOT EXISTS (
+    -- Insert only ACTUALLY USED permissions (64 permissions from code analysis)
+    INSERT INTO auth.permissions (group_id, name, code, is_system)
+    SELECT pg.id, perm.name, perm.code, true
+    FROM auth.permission_groups pg
+    CROSS JOIN (VALUES
+        -- AUDIT (2 permissions)
+        ('System Management', 'Read audit logs', 'audit.read'),
+        ('System Management', 'Export audit logs', 'audit.export'),
+        
+        -- USERS (4 permissions)
+        ('System Management', 'Read users', 'users.read'),
+        ('System Management', 'Create users', 'users.create'),
+        ('System Management', 'Update users', 'users.update'),
+        ('System Management', 'Delete users', 'users.delete'),
+        
+        -- ROLES (4 permissions)
+        ('System Management', 'Read roles', 'roles.read'),
+        ('System Management', 'Create roles', 'roles.create'),
+        ('System Management', 'Update roles', 'roles.update'),
+        ('System Management', 'Delete roles', 'roles.delete'),
+        
+        -- PERMISSIONS (5 permissions)
+        ('System Management', 'Read permissions', 'permissions.read'),
+        ('System Management', 'Create permissions', 'permissions.create'),
+        ('System Management', 'Update permissions', 'permissions.update'),
+        ('System Management', 'Delete permissions', 'permissions.delete'),
+        ('System Management', 'Manage permission groups', 'permissions.manage'),
+        
+        -- PRODUCTS (4 permissions)
+        ('Product Management', 'Read products', 'products.read'),
+        ('Product Management', 'Create products', 'products.create'),
+        ('Product Management', 'Update products', 'products.update'),
+        ('Product Management', 'Delete products', 'products.delete'),
+        
+        -- WAREHOUSES (4 permissions)
+        ('Warehouse Management', 'Read warehouses', 'warehouses.read'),
+        ('Warehouse Management', 'Create warehouses', 'warehouses.create'),
+        ('Warehouse Management', 'Update warehouses', 'warehouses.update'),
+        ('Warehouse Management', 'Delete warehouses', 'warehouses.delete'),
+        
+        -- CLIENTS (4 permissions)
+        ('Client Management', 'Read clients', 'clients.read'),
+        ('Client Management', 'Create clients', 'clients.create'),
+        ('Client Management', 'Update clients', 'clients.update'),
+        ('Client Management', 'Delete clients', 'clients.delete'),
+        
+        -- SERVICES (4 permissions)
+        ('Client Management', 'Read services', 'services.read'),
+        ('Client Management', 'Create services', 'services.create'),
+        ('Client Management', 'Update services', 'services.update'),
+        ('Client Management', 'Delete services', 'services.delete'),
+        
+        -- INVOICES (3 permissions)
+        ('Financial Management', 'Read invoices', 'invoices.read'),
+        ('Financial Management', 'Create invoices', 'invoices.create'),
+        ('Financial Management', 'Update invoices', 'invoices.update'),
+        
+        -- PAYMENTS (4 permissions)
+        ('Financial Management', 'Read payments', 'payments.read'),
+        ('Financial Management', 'Create payments', 'payments.create'),
+        ('Financial Management', 'Update payments', 'payments.update'),
+        ('Financial Management', 'Delete payments', 'payments.delete'),
+        
+        -- TARIFFS (4 permissions)
+        ('Financial Management', 'Read tariffs', 'tariffs.read'),
+        ('Financial Management', 'Create tariffs', 'tariffs.create'),
+        ('Financial Management', 'Update tariffs', 'tariffs.update'),
+        ('Financial Management', 'Delete tariffs', 'tariffs.delete'),
+        
+        -- COMPANY PROFILE (2 permissions)
+        ('Financial Management', 'Read company profile', 'company_profile.read'),
+        ('Financial Management', 'Update company profile', 'company_profile.update'),
+        
+        -- BANK ACCOUNTS (4 permissions)
+        ('Financial Management', 'Read bank accounts', 'bank_accounts.read'),
+        ('Financial Management', 'Create bank accounts', 'bank_accounts.create'),
+        ('Financial Management', 'Update bank accounts', 'bank_accounts.update'),
+        ('Financial Management', 'Delete bank accounts', 'bank_accounts.delete'),
+        
+        -- LEGAL DOCUMENTS (3 permissions)
+        ('Financial Management', 'Read legal documents', 'legal_documents.read'),
+        ('Financial Management', 'Create legal documents', 'legal_documents.create'),
+        ('Financial Management', 'Delete legal documents', 'legal_documents.delete'),
+        
+        -- SETTINGS (3 permissions)
+        ('Financial Management', 'Read settings', 'settings.read'),
+        ('Financial Management', 'Create settings', 'settings.create'),
+        ('Financial Management', 'Delete settings', 'settings.delete'),
+        
+        -- WIALON OBJECTS (4 permissions)
+        ('Wialon Management', 'Read wialon objects', 'wialon_objects.read'),
+        ('Wialon Management', 'Create wialon objects', 'wialon_objects.create'),
+        ('Wialon Management', 'Update wialon objects', 'wialon_objects.update'),
+        ('Wialon Management', 'Delete wialon objects', 'wialon_objects.delete'),
+        
+        -- WIALON INTEGRATION (2 permissions)
+        ('Wialon Management', 'Read wialon integration', 'wialon_integration.read'),
+        ('Wialon Management', 'Update wialon integration', 'wialon_integration.update'),
+        
+        -- WIALON SYNC (4 permissions)
+        ('Wialon Management', 'Read wialon sync', 'wialon_sync.read'),
+        ('Wialon Management', 'Create wialon sync', 'wialon_sync.create'),
+        ('Wialon Management', 'Update wialon sync', 'wialon_sync.update'),
+        ('Wialon Management', 'Delete wialon sync', 'wialon_sync.delete'),
+        
+        -- RESOURCES (4 permissions)
+        ('Resource Management', 'Read resources', 'resources.read'),
+        ('Resource Management', 'Create resources', 'resources.create'),
+        ('Resource Management', 'Update resources', 'resources.update'),
+        ('Resource Management', 'Delete resources', 'resources.delete'),
+        ('Resource Management', 'Manage resource actions', 'resources.manage')
+        
+    ) AS perm(group_name, name, code)
+    WHERE pg.name = perm.group_name
+    AND NOT EXISTS (
         SELECT 1 FROM auth.permissions
-        WHERE code = pd.resource_code || '.' || pd.action_code
-    )
-    ON CONFLICT (code) DO NOTHING;
+        WHERE code = perm.code
+    );
 
-    -- Insert default roles if they don't exist
+    -- Insert optimized roles (fewer, more logical roles)
     INSERT INTO auth.roles (name, description, is_system)
     SELECT * FROM (VALUES
-        ('admin', 'System administrator with full access', true),
-        ('warehouse_manager', 'Warehouse manager with stock control permissions', true),
-        ('product_manager', 'Product manager with catalog management permissions', true),
-        ('support_specialist', 'Support specialist with repair and warranty management', true),
-        ('report_viewer', 'User with read-only access to reports', true),
-        ('stock_controller', 'User responsible for stock operations', true),
-        ('warranty_manager', 'User managing warranty claims and tracking', true),
-        ('system_auditor', 'User with access to audit logs and system monitoring', true),
-        ('user', 'Regular user with basic permissions', true),
-        -- New roles
-        ('client_manager', 'User managing clients and their services', true),
-        ('finance_manager', 'User managing billing, invoices and payments', true),
-        ('wialon_manager', 'User managing Wialon objects and tariffs', true),
-        ('service_manager', 'User managing services and client subscriptions', true),
-        ('company_manager', 'User managing company settings and integrations', true)
+        ('super_admin', 'Super administrator with full system access', true),
+        ('admin', 'Administrator with full business access', true),
+        ('manager', 'Manager with client and service management access', true),
+        ('operator', 'Operator with payment and invoice management', true),
+        ('warehouse_manager', 'Warehouse manager with inventory control', true),
+        ('accountant', 'Accountant with financial operations access', true),
+        ('viewer', 'Read-only access to main data', true)
     ) AS v (name, description, is_system)
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.roles
         WHERE name = v.name
     );
 
-    -- Grant all permissions to admin role
+    -- Grant permissions to roles
+    
+    -- SUPER_ADMIN: all permissions
     INSERT INTO auth.role_permissions (role_id, permission_id)
     SELECT r.id, p.id
     FROM auth.roles r
     CROSS JOIN auth.permissions p
-    WHERE r.name = 'admin'
+    WHERE r.name = 'super_admin'
     AND NOT EXISTS (
         SELECT 1 FROM auth.role_permissions
         WHERE role_id = r.id AND permission_id = p.id
     );
 
-    -- Grant warehouse permissions to warehouse_manager role
+    -- ADMIN: all except system management (users, roles, permissions)
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'admin'
+    AND pg.name != 'System Management'
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+    
+    -- ADMIN: only audit.read from system management
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    WHERE r.name = 'admin'
+    AND p.code = 'audit.read'
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- MANAGER: client, service, wialon management + reading others
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'manager'
+    AND (
+        pg.name IN ('Client Management', 'Wialon Management') OR
+        (pg.name IN ('Product Management', 'Warehouse Management', 'Financial Management') AND p.code LIKE '%.read')
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- OPERATOR: payments, invoices + reading clients, services
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    WHERE r.name = 'operator'
+    AND p.code IN (
+        'payments.read', 'payments.create', 'payments.update', 'payments.delete',
+        'invoices.read', 'invoices.create', 'invoices.update',
+        'clients.read', 'services.read', 'wialon_objects.read'
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- WAREHOUSE_MANAGER: full warehouse + product management
     INSERT INTO auth.role_permissions (role_id, permission_id)
     SELECT r.id, p.id
     FROM auth.roles r
     CROSS JOIN auth.permissions p
     JOIN auth.permission_groups pg ON p.group_id = pg.id
     WHERE r.name = 'warehouse_manager'
-    AND pg.name IN ('Warehouse Management', 'Stock Management', 'Stock Movement Management', 
-                   'Document Management', 'Report Management')
+    AND pg.name IN ('Product Management', 'Warehouse Management')
     AND NOT EXISTS (
         SELECT 1 FROM auth.role_permissions
         WHERE role_id = r.id AND permission_id = p.id
     );
-
-    -- Grant product management permissions to product_manager role
+    
+    -- WAREHOUSE_MANAGER: reading others
     INSERT INTO auth.role_permissions (role_id, permission_id)
     SELECT r.id, p.id
     FROM auth.roles r
     CROSS JOIN auth.permissions p
     JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'product_manager'
-    AND pg.name IN ('Product Management', 'Product Type Management', 'Product Model Management',
-                   'Manufacturer Management', 'Supplier Management', 'Document Management')
+    WHERE r.name = 'warehouse_manager'
+    AND pg.name IN ('Client Management') AND p.code LIKE '%.read'
     AND NOT EXISTS (
         SELECT 1 FROM auth.role_permissions
         WHERE role_id = r.id AND permission_id = p.id
     );
 
-    -- Grant support permissions to support_specialist role
+    -- ACCOUNTANT: financial management + reading others
     INSERT INTO auth.role_permissions (role_id, permission_id)
     SELECT r.id, p.id
     FROM auth.roles r
     CROSS JOIN auth.permissions p
     JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'support_specialist'
-    AND pg.name IN ('Warranty Management', 'Repair Management', 'Document Management')
+    WHERE r.name = 'accountant'
+    AND (
+        pg.name = 'Financial Management' OR
+        (pg.name IN ('Client Management', 'Wialon Management') AND p.code LIKE '%.read')
+    )
     AND NOT EXISTS (
         SELECT 1 FROM auth.role_permissions
         WHERE role_id = r.id AND permission_id = p.id
     );
 
-    -- Grant stock controller permissions
+    -- VIEWER: only read permissions
     INSERT INTO auth.role_permissions (role_id, permission_id)
     SELECT r.id, p.id
     FROM auth.roles r
     CROSS JOIN auth.permissions p
-    JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'stock_controller'
-    AND pg.name IN ('Stock Management', 'Stock Movement Management', 'Document Management')
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.role_permissions
-        WHERE role_id = r.id AND permission_id = p.id
-    );
-
-    -- Grant system auditor permissions
-    INSERT INTO auth.role_permissions (role_id, permission_id)
-    SELECT r.id, p.id
-    FROM auth.roles r
-    CROSS JOIN auth.permissions p
-    JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'system_auditor'
-    AND pg.name IN ('Audit Log Access', 'Report Management', 'Analytics Access')
+    WHERE r.name = 'viewer'
     AND p.code LIKE '%.read'
+    AND p.code != 'audit.read' -- exclude audit
     AND NOT EXISTS (
         SELECT 1 FROM auth.role_permissions
         WHERE role_id = r.id AND permission_id = p.id
     );
-
-    -- Grant warranty manager permissions
-    INSERT INTO auth.role_permissions (role_id, permission_id)
-    SELECT r.id, p.id
-    FROM auth.roles r
-    CROSS JOIN auth.permissions p
-    JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'warranty_manager'
-    AND pg.name IN ('Warranty Management', 'Document Management', 'Report Management')
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.role_permissions
-        WHERE role_id = r.id AND permission_id = p.id
-    );
-
-    -- Grant system auditor permissions
-    INSERT INTO auth.role_permissions (role_id, permission_id)
-    SELECT r.id, p.id
-    FROM auth.roles r
-    CROSS JOIN auth.permissions p
-    JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'system_auditor'
-    AND pg.name IN ('Audit Log Access', 'Report Management', 'Analytics Access')
-    AND p.code LIKE '%.read'
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.role_permissions
-        WHERE role_id = r.id AND permission_id = p.id
-    );
-
-    -- Grant report viewing permissions to report_viewer role
-    INSERT INTO auth.role_permissions (role_id, permission_id)
-    SELECT r.id, p.id
-    FROM auth.roles r
-    CROSS JOIN auth.permissions p
-    JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'report_viewer'
-    AND pg.name IN ('Report Management', 'Analytics Access')
-    AND p.code LIKE '%.read'
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.role_permissions
-        WHERE role_id = r.id AND permission_id = p.id
-    );
-
-    -- Grant basic permissions to user role
-    INSERT INTO auth.role_permissions (role_id, permission_id)
-    SELECT r.id, p.id
-    FROM auth.roles r
-    CROSS JOIN auth.permissions p
-    JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'user'
-    AND pg.name IN ('Report Management')
-    AND p.code LIKE '%.read'
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.role_permissions
-        WHERE role_id = r.id AND permission_id = p.id
-    );
-
-    -- Grant client manager permissions
-    INSERT INTO auth.role_permissions (role_id, permission_id)
-    SELECT r.id, p.id
-    FROM auth.roles r
-    CROSS JOIN auth.permissions p
-    JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'client_manager'
-    AND pg.name IN ('Client Management', 'Document Management', 'Report Management', 'Service Management')
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.role_permissions
-        WHERE role_id = r.id AND permission_id = p.id
-    );
-
-    -- Grant finance manager permissions
-    INSERT INTO auth.role_permissions (role_id, permission_id)
-    SELECT r.id, p.id
-    FROM auth.roles r
-    CROSS JOIN auth.permissions p
-    JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'finance_manager'
-    AND pg.name IN ('Billing Management', 'Invoice Management', 'Payment Management', 'Report Management')
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.role_permissions
-        WHERE role_id = r.id AND permission_id = p.id
-    );
-
-    -- Grant wialon manager permissions
-    INSERT INTO auth.role_permissions (role_id, permission_id)
-    SELECT r.id, p.id
-    FROM auth.roles r
-    CROSS JOIN auth.permissions p
-    JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'wialon_manager'
-    AND pg.name IN ('Wialon Object Management', 'Tariff Management', 'Report Management')
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.role_permissions
-        WHERE role_id = r.id AND permission_id = p.id
-    );
-
-    -- Grant service manager permissions
-    INSERT INTO auth.role_permissions (role_id, permission_id)
-    SELECT r.id, p.id
-    FROM auth.roles r
-    CROSS JOIN auth.permissions p
-    JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'service_manager'
-    AND pg.name IN ('Service Management', 'Client Management', 'Report Management')
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.role_permissions
-        WHERE role_id = r.id AND permission_id = p.id
-    );
-
-    -- Grant company manager permissions
-    INSERT INTO auth.role_permissions (role_id, permission_id)
-    SELECT r.id, p.id
-    FROM auth.roles r
-    CROSS JOIN auth.permissions p
-    JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'company_manager'
-    AND pg.name IN ('Company Management', 'Email Management', 'Integration Management', 'System Configuration')
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.role_permissions
-        WHERE role_id = r.id AND permission_id = p.id
-    );
-    -- Grant wialon sync permissions to admin role (додати цей блок)
-INSERT INTO auth.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM auth.roles r
-CROSS JOIN auth.permissions p
-JOIN auth.permission_groups pg ON p.group_id = pg.id
-WHERE r.name = 'admin'
-AND pg.name IN ('Wialon Sync Management')
-AND NOT EXISTS (
-    SELECT 1 FROM auth.role_permissions
-    WHERE role_id = r.id AND permission_id = p.id
-);
-
--- Grant wialon sync permissions to company_manager role (додати цей блок)
-INSERT INTO auth.role_permissions (role_id, permission_id)
-SELECT r.id, p.id
-FROM auth.roles r
-CROSS JOIN auth.permissions p
-JOIN auth.permission_groups pg ON p.group_id = pg.id
-WHERE r.name = 'company_manager'
-AND pg.name IN ('Wialon Sync Management')
-AND NOT EXISTS (
-    SELECT 1 FROM auth.role_permissions
-    WHERE role_id = r.id AND permission_id = p.id
-);
 
 END $$;
 
