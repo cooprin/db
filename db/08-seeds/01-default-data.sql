@@ -1,5 +1,5 @@
--- Оптимізований файл ініціалізації прав (замість 01-default-data.sql)
--- Створює тільки ті права, які реально використовуються в коді
+-- Спрощена система ресурсів з 4 основними діями
+-- Зберігає гнучкість але спрощує структуру
 
 -- Grant privileges to current user
 DO $$
@@ -50,7 +50,7 @@ SET session_replication_role = 'replica';
 -- Insert initial data
 DO $$
 BEGIN
-    -- Insert permission groups (тільки потрібні)
+    -- Insert permission groups
     INSERT INTO auth.permission_groups (name, description)
     SELECT * FROM (VALUES
         ('System Management', 'System-level permissions (users, roles, permissions, audit)'),
@@ -66,126 +66,82 @@ BEGIN
         WHERE name = v.name
     );
 
-    -- Insert only ACTUALLY USED permissions (64 permissions from code analysis)
-    INSERT INTO auth.permissions (group_id, name, code, is_system)
-    SELECT pg.id, perm.name, perm.code, true
-    FROM auth.permission_groups pg
-    CROSS JOIN (VALUES
-        -- AUDIT (2 permissions)
-        ('System Management', 'Read audit logs', 'audit.read'),
-        ('System Management', 'Export audit logs', 'audit.export'),
-        
-        -- USERS (4 permissions)
-        ('System Management', 'Read users', 'users.read'),
-        ('System Management', 'Create users', 'users.create'),
-        ('System Management', 'Update users', 'users.update'),
-        ('System Management', 'Delete users', 'users.delete'),
-        
-        -- ROLES (4 permissions)
-        ('System Management', 'Read roles', 'roles.read'),
-        ('System Management', 'Create roles', 'roles.create'),
-        ('System Management', 'Update roles', 'roles.update'),
-        ('System Management', 'Delete roles', 'roles.delete'),
-        
-        -- PERMISSIONS (5 permissions)
-        ('System Management', 'Read permissions', 'permissions.read'),
-        ('System Management', 'Create permissions', 'permissions.create'),
-        ('System Management', 'Update permissions', 'permissions.update'),
-        ('System Management', 'Delete permissions', 'permissions.delete'),
-        ('System Management', 'Manage permission groups', 'permissions.manage'),
-        
-        -- PRODUCTS (4 permissions)
-        ('Product Management', 'Read products', 'products.read'),
-        ('Product Management', 'Create products', 'products.create'),
-        ('Product Management', 'Update products', 'products.update'),
-        ('Product Management', 'Delete products', 'products.delete'),
-        
-        -- WAREHOUSES (4 permissions)
-        ('Warehouse Management', 'Read warehouses', 'warehouses.read'),
-        ('Warehouse Management', 'Create warehouses', 'warehouses.create'),
-        ('Warehouse Management', 'Update warehouses', 'warehouses.update'),
-        ('Warehouse Management', 'Delete warehouses', 'warehouses.delete'),
-        
-        -- CLIENTS (4 permissions)
-        ('Client Management', 'Read clients', 'clients.read'),
-        ('Client Management', 'Create clients', 'clients.create'),
-        ('Client Management', 'Update clients', 'clients.update'),
-        ('Client Management', 'Delete clients', 'clients.delete'),
-        
-        -- SERVICES (4 permissions)
-        ('Client Management', 'Read services', 'services.read'),
-        ('Client Management', 'Create services', 'services.create'),
-        ('Client Management', 'Update services', 'services.update'),
-        ('Client Management', 'Delete services', 'services.delete'),
-        
-        -- INVOICES (3 permissions)
-        ('Financial Management', 'Read invoices', 'invoices.read'),
-        ('Financial Management', 'Create invoices', 'invoices.create'),
-        ('Financial Management', 'Update invoices', 'invoices.update'),
-        
-        -- PAYMENTS (4 permissions)
-        ('Financial Management', 'Read payments', 'payments.read'),
-        ('Financial Management', 'Create payments', 'payments.create'),
-        ('Financial Management', 'Update payments', 'payments.update'),
-        ('Financial Management', 'Delete payments', 'payments.delete'),
-        
-        -- TARIFFS (4 permissions)
-        ('Financial Management', 'Read tariffs', 'tariffs.read'),
-        ('Financial Management', 'Create tariffs', 'tariffs.create'),
-        ('Financial Management', 'Update tariffs', 'tariffs.update'),
-        ('Financial Management', 'Delete tariffs', 'tariffs.delete'),
-        
-        -- COMPANY PROFILE (2 permissions)
-        ('Financial Management', 'Read company profile', 'company_profile.read'),
-        ('Financial Management', 'Update company profile', 'company_profile.update'),
-        
-        -- BANK ACCOUNTS (4 permissions)
-        ('Financial Management', 'Read bank accounts', 'bank_accounts.read'),
-        ('Financial Management', 'Create bank accounts', 'bank_accounts.create'),
-        ('Financial Management', 'Update bank accounts', 'bank_accounts.update'),
-        ('Financial Management', 'Delete bank accounts', 'bank_accounts.delete'),
-        
-        -- LEGAL DOCUMENTS (3 permissions)
-        ('Financial Management', 'Read legal documents', 'legal_documents.read'),
-        ('Financial Management', 'Create legal documents', 'legal_documents.create'),
-        ('Financial Management', 'Delete legal documents', 'legal_documents.delete'),
-        
-        -- SETTINGS (3 permissions)
-        ('Financial Management', 'Read settings', 'settings.read'),
-        ('Financial Management', 'Create settings', 'settings.create'),
-        ('Financial Management', 'Delete settings', 'settings.delete'),
-        
-        -- WIALON OBJECTS (4 permissions)
-        ('Wialon Management', 'Read wialon objects', 'wialon_objects.read'),
-        ('Wialon Management', 'Create wialon objects', 'wialon_objects.create'),
-        ('Wialon Management', 'Update wialon objects', 'wialon_objects.update'),
-        ('Wialon Management', 'Delete wialon objects', 'wialon_objects.delete'),
-        
-        -- WIALON INTEGRATION (2 permissions)
-        ('Wialon Management', 'Read wialon integration', 'wialon_integration.read'),
-        ('Wialon Management', 'Update wialon integration', 'wialon_integration.update'),
-        
-        -- WIALON SYNC (4 permissions)
-        ('Wialon Management', 'Read wialon sync', 'wialon_sync.read'),
-        ('Wialon Management', 'Create wialon sync', 'wialon_sync.create'),
-        ('Wialon Management', 'Update wialon sync', 'wialon_sync.update'),
-        ('Wialon Management', 'Delete wialon sync', 'wialon_sync.delete'),
-        
-        -- RESOURCES (4 permissions)
-        ('Resource Management', 'Read resources', 'resources.read'),
-        ('Resource Management', 'Create resources', 'resources.create'),
-        ('Resource Management', 'Update resources', 'resources.update'),
-        ('Resource Management', 'Delete resources', 'resources.delete'),
-        ('Resource Management', 'Manage resource actions', 'resources.manage')
-        
-    ) AS perm(group_name, name, code)
-    WHERE pg.name = perm.group_name
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.permissions
-        WHERE code = perm.code
+    -- Insert ONLY 4 basic actions (спрощення!)
+    INSERT INTO core.actions (name, code, description)
+    SELECT * FROM (VALUES
+        ('Create', 'create', 'Permission to create new records'),
+        ('Read', 'read', 'Permission to read records'),
+        ('Update', 'update', 'Permission to update records'),
+        ('Delete', 'delete', 'Permission to delete records')
+    ) AS v (name, code, description)
+    WHERE NOT EXISTS (
+        SELECT 1 FROM core.actions
+        WHERE code = v.code
     );
 
-    -- Insert optimized roles (fewer, more logical roles)
+    -- Insert resources (тільки ті що реально використовуються)
+    INSERT INTO core.resources (name, code, type)
+    SELECT * FROM (VALUES
+        -- System resources
+        ('Users', 'users', 'module'),
+        ('Roles', 'roles', 'module'),
+        ('Permissions', 'permissions', 'module'),
+        ('Resources', 'resources', 'module'),
+        ('Audit Logs', 'audit', 'module'),
+        
+        -- Business resources
+        ('Products', 'products', 'module'),
+        ('Warehouses', 'warehouses', 'module'),
+        ('Clients', 'clients', 'module'),
+        ('Services', 'services', 'module'),
+        ('Invoices', 'invoices', 'module'),
+        ('Payments', 'payments', 'module'),
+        ('Tariffs', 'tariffs', 'module'),
+        ('Company Profile', 'company_profile', 'module'),
+        ('Wialon Objects', 'wialon_objects', 'module'),
+        ('Wialon Sync', 'wialon_sync', 'module')
+    ) AS v (name, code, type)
+    WHERE NOT EXISTS (
+        SELECT 1 FROM core.resources
+        WHERE code = v.code
+    );
+
+    -- Link ALL resources with ALL 4 actions (автогенерація зв'язків)
+    INSERT INTO core.resource_actions (resource_id, action_id, is_default)
+    SELECT r.id, a.id, true
+    FROM core.resources r
+    CROSS JOIN core.actions a
+    WHERE NOT EXISTS (
+        SELECT 1 FROM core.resource_actions
+        WHERE resource_id = r.id AND action_id = a.id
+    );
+
+    -- Auto-generate permissions for each resource+action combination
+    INSERT INTO auth.permissions (group_id, resource_id, name, code, is_system)
+    SELECT 
+        pg.id as group_id,
+        r.id as resource_id,
+        r.code || '.' || a.code as name,
+        r.code || '.' || a.code as code,
+        true as is_system
+    FROM core.resources r
+    CROSS JOIN core.actions a
+    JOIN core.resource_actions ra ON r.id = ra.resource_id AND a.id = ra.action_id
+    LEFT JOIN auth.permission_groups pg ON (
+        -- Mapping resources to permission groups
+        (r.code IN ('users', 'roles', 'permissions', 'resources', 'audit') AND pg.name = 'System Management') OR
+        (r.code = 'products' AND pg.name = 'Product Management') OR
+        (r.code = 'warehouses' AND pg.name = 'Warehouse Management') OR
+        (r.code IN ('clients', 'services') AND pg.name = 'Client Management') OR
+        (r.code IN ('invoices', 'payments', 'tariffs', 'company_profile') AND pg.name = 'Financial Management') OR
+        (r.code IN ('wialon_objects', 'wialon_sync') AND pg.name = 'Wialon Management')
+    )
+    WHERE NOT EXISTS (
+        SELECT 1 FROM auth.permissions
+        WHERE code = r.code || '.' || a.code
+    );
+
+    -- Insert optimized roles
     INSERT INTO auth.roles (name, description, is_system)
     SELECT * FROM (VALUES
         ('admin', 'Administrator with full system access', true),
@@ -201,7 +157,7 @@ BEGIN
     );
 
     -- Grant permissions to roles
-    
+
     -- ADMIN: all permissions
     INSERT INTO auth.role_permissions (role_id, permission_id)
     SELECT r.id, p.id
