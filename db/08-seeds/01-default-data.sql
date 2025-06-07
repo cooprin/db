@@ -188,8 +188,7 @@ BEGIN
     -- Insert optimized roles (fewer, more logical roles)
     INSERT INTO auth.roles (name, description, is_system)
     SELECT * FROM (VALUES
-        ('super_admin', 'Super administrator with full system access', true),
-        ('admin', 'Administrator with full business access', true),
+        ('admin', 'Administrator with full system access', true),
         ('manager', 'Manager with client and service management access', true),
         ('operator', 'Operator with payment and invoice management', true),
         ('warehouse_manager', 'Warehouse manager with inventory control', true),
@@ -203,37 +202,12 @@ BEGIN
 
     -- Grant permissions to roles
     
-    -- SUPER_ADMIN: all permissions
-    INSERT INTO auth.role_permissions (role_id, permission_id)
-    SELECT r.id, p.id
-    FROM auth.roles r
-    CROSS JOIN auth.permissions p
-    WHERE r.name = 'super_admin'
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.role_permissions
-        WHERE role_id = r.id AND permission_id = p.id
-    );
-
-    -- ADMIN: all except system management (users, roles, permissions)
-    INSERT INTO auth.role_permissions (role_id, permission_id)
-    SELECT r.id, p.id
-    FROM auth.roles r
-    CROSS JOIN auth.permissions p
-    JOIN auth.permission_groups pg ON p.group_id = pg.id
-    WHERE r.name = 'admin'
-    AND pg.name != 'System Management'
-    AND NOT EXISTS (
-        SELECT 1 FROM auth.role_permissions
-        WHERE role_id = r.id AND permission_id = p.id
-    );
-    
-    -- ADMIN: only audit.read from system management
+    -- ADMIN: all permissions
     INSERT INTO auth.role_permissions (role_id, permission_id)
     SELECT r.id, p.id
     FROM auth.roles r
     CROSS JOIN auth.permissions p
     WHERE r.name = 'admin'
-    AND p.code = 'audit.read'
     AND NOT EXISTS (
         SELECT 1 FROM auth.role_permissions
         WHERE role_id = r.id AND permission_id = p.id
