@@ -21,11 +21,14 @@ BEGIN
             CONSTRAINT chk_sync_status CHECK (status IN ('running', 'completed', 'failed', 'cancelled'))
         );
         
+        CREATE INDEX idx_sync_sessions_status ON wialon_sync.sync_sessions(status);
+        CREATE INDEX idx_sync_sessions_created_by ON wialon_sync.sync_sessions(created_by);
+        
         COMMENT ON TABLE wialon_sync.sync_sessions IS 'History of synchronization sessions';
         RAISE NOTICE 'Sync sessions table created';
     END IF;
 
-    -- Sync discrepancies table
+    -- Sync discrepancies table with updated constraint
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.tables 
         WHERE table_schema = 'wialon_sync' AND table_name = 'sync_discrepancies'
@@ -59,14 +62,42 @@ BEGIN
             CONSTRAINT chk_discrepancy_type CHECK (discrepancy_type IN (
                 'new_client', 'new_object', 'client_name_changed', 'object_name_changed', 
                 'owner_changed', 'new_object_with_known_client', 'client_deleted', 'object_deleted',
-                'client_username_changed'
+                'client_username_changed', 'client_user_id_changed'
             )),
             CONSTRAINT chk_entity_type CHECK (entity_type IN ('client', 'object')),
             CONSTRAINT chk_discrepancy_status CHECK (status IN ('pending', 'approved', 'added', 'ignored', 'rejected'))
         );
         
+        CREATE INDEX idx_sync_discrepancies_type_status ON wialon_sync.sync_discrepancies(discrepancy_type, status);
+        CREATE INDEX idx_sync_discrepancies_system_client ON wialon_sync.sync_discrepancies(system_client_id);
+        CREATE INDEX idx_sync_discrepancies_system_object ON wialon_sync.sync_discrepancies(system_object_id);
+        
         COMMENT ON TABLE wialon_sync.sync_discrepancies IS 'Detected discrepancies between Wialon and system data';
         RAISE NOTICE 'Sync discrepancies table created';
+    END IF;
+
+    -- Додаємо нові типи розбіжностей до існуючої таблиці
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'wialon_sync' AND table_name = 'sync_discrepancies'
+    ) THEN
+        -- Видаляємо старе обмеження якщо існує
+        IF EXISTS (
+            SELECT 1 FROM information_schema.check_constraints 
+            WHERE constraint_schema = 'wialon_sync' 
+            AND constraint_name = 'chk_discrepancy_type'
+        ) THEN
+            ALTER TABLE wialon_sync.sync_discrepancies DROP CONSTRAINT chk_discrepancy_type;
+        END IF;
+        
+        -- Додаємо нове обмеження з додатковими типами
+        ALTER TABLE wialon_sync.sync_discrepancies ADD CONSTRAINT chk_discrepancy_type CHECK (discrepancy_type IN (
+            'new_client', 'new_object', 'client_name_changed', 'object_name_changed', 
+            'owner_changed', 'new_object_with_known_client', 'client_deleted', 'object_deleted',
+            'client_username_changed', 'client_user_id_changed'
+        ));
+        
+        RAISE NOTICE 'Updated discrepancy types constraint';
     END IF;
 
     -- Sync logs table
@@ -86,9 +117,13 @@ BEGIN
             CONSTRAINT chk_log_level CHECK (log_level IN ('info', 'warning', 'error', 'debug'))
         );
         
+        CREATE INDEX idx_sync_logs_level_created ON wialon_sync.sync_logs(log_level, created_at);
+        
         COMMENT ON TABLE wialon_sync.sync_logs IS 'Detailed logs of synchronization process';
         RAISE NOTICE 'Sync logs table created';
     END IF;
+
+    -- Unique constraint for only one running session
     IF NOT EXISTS (
         SELECT 1 FROM pg_indexes 
         WHERE schemaname = 'wialon_sync' 
@@ -102,4 +137,4 @@ BEGIN
         
         RAISE NOTICE 'Constraint for single running session created';
     END IF;
-END $$;
+END $;

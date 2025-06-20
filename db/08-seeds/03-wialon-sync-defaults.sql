@@ -4,7 +4,7 @@ SET session_replication_role = 'replica';
 -- Insert default wialon_sync data
 DO $$
 BEGIN
--- Insert default sync rules with CORRECTED SQL queries
+    -- Insert default sync rules with UPDATED SQL queries for new field structure
     INSERT INTO wialon_sync.sync_rules (name, description, rule_type, sql_query, parameters, execution_order)
     SELECT * FROM (VALUES
         (
@@ -18,7 +18,8 @@ BEGIN
                 ''new_client'',
                 ''client'',
                 jsonb_build_object(
-                    ''wialon_id'', twc.wialon_id,
+                    ''wialon_resource_id'', twc.wialon_resource_id,
+                    ''wialon_user_id'', twc.wialon_user_id,
                     ''name'', twc.name,
                     ''full_name'', twc.full_name,
                     ''description'', twc.description,
@@ -29,7 +30,8 @@ BEGIN
             WHERE twc.session_id = $1
             AND NOT EXISTS (
                 SELECT 1 FROM clients.clients c 
-                WHERE c.wialon_id = twc.wialon_id
+                WHERE c.wialon_resource_id = twc.wialon_resource_id
+                OR c.wialon_id = twc.wialon_user_id
             )',
             '{"sessionId": "parameter"}'::jsonb,
             10
@@ -73,21 +75,59 @@ BEGIN
                 ''client'',
                 c.id,
                 jsonb_build_object(
-                    ''wialon_id'', twc.wialon_id,
-                    ''name'', twc.name
+                    ''wialon_resource_id'', twc.wialon_resource_id,
+                    ''wialon_user_id'', twc.wialon_user_id,
+                    ''name'', twc.name,
+                    ''wialon_username'', twc.wialon_username
                 ),
                 jsonb_build_object(
                     ''id'', c.id,
                     ''name'', c.name,
-                    ''wialon_id'', c.wialon_id
+                    ''wialon_resource_id'', c.wialon_resource_id,
+                    ''wialon_id'', c.wialon_id,
+                    ''wialon_username'', c.wialon_username
                 ),
                 ''pending''
             FROM wialon_sync.temp_wialon_clients twc
-            JOIN clients.clients c ON twc.wialon_id = c.wialon_id
+            JOIN clients.clients c ON (twc.wialon_resource_id = c.wialon_resource_id OR twc.wialon_user_id = c.wialon_id)
             WHERE twc.session_id = $1
             AND LOWER(TRIM(twc.name)) != LOWER(TRIM(c.name))',
             '{"sessionId": "parameter"}'::jsonb,
             30
+        ),
+        (
+            'Client User ID Changes Detection',
+            'Detect client user ID (crt) changes between Wialon and system',
+            'name_comparison',
+            'INSERT INTO wialon_sync.sync_discrepancies 
+            (session_id, discrepancy_type, entity_type, system_client_id, wialon_entity_data, system_entity_data, status)
+            SELECT 
+                $1,
+                ''client_user_id_changed'',
+                ''client'',
+                c.id,
+                jsonb_build_object(
+                    ''wialon_resource_id'', twc.wialon_resource_id,
+                    ''wialon_user_id'', twc.wialon_user_id,
+                    ''name'', twc.name,
+                    ''wialon_username'', twc.wialon_username
+                ),
+                jsonb_build_object(
+                    ''id'', c.id,
+                    ''name'', c.name,
+                    ''wialon_resource_id'', c.wialon_resource_id,
+                    ''wialon_id'', c.wialon_id,
+                    ''wialon_username'', c.wialon_username
+                ),
+                ''pending''
+            FROM wialon_sync.temp_wialon_clients twc
+            JOIN clients.clients c ON twc.wialon_resource_id = c.wialon_resource_id
+            WHERE twc.session_id = $1
+            AND (
+                COALESCE(twc.wialon_user_id, '''') != COALESCE(c.wialon_id, '''')
+            )',
+            '{"sessionId": "parameter"}'::jsonb,
+            35
         ),
         (
             'Client Username Changes Detection',
@@ -101,19 +141,21 @@ BEGIN
                 ''client'',
                 c.id,
                 jsonb_build_object(
-                    ''wialon_id'', twc.wialon_id,
+                    ''wialon_resource_id'', twc.wialon_resource_id,
+                    ''wialon_user_id'', twc.wialon_user_id,
                     ''name'', twc.name,
                     ''wialon_username'', twc.wialon_username
                 ),
                 jsonb_build_object(
                     ''id'', c.id,
                     ''name'', c.name,
+                    ''wialon_resource_id'', c.wialon_resource_id,
                     ''wialon_id'', c.wialon_id,
                     ''wialon_username'', c.wialon_username
                 ),
                 ''pending''
             FROM wialon_sync.temp_wialon_clients twc
-            JOIN clients.clients c ON twc.wialon_id = c.wialon_id
+            JOIN clients.clients c ON (twc.wialon_resource_id = c.wialon_resource_id OR twc.wialon_user_id = c.wialon_id)
             WHERE twc.session_id = $1
             AND (
                 COALESCE(LOWER(TRIM(twc.wialon_username)), '''') != COALESCE(LOWER(TRIM(c.wialon_username)), '''')
@@ -155,8 +197,34 @@ BEGIN
         WHERE name = v.name
     );
 
+    -- Оновлюємо існуючі правила якщо потрібно
+    UPDATE wialon_sync.sync_rules 
+    SET sql_query = 'INSERT INTO wialon_sync.sync_discrepancies 
+        (session_id, discrepancy_type, entity_type, wialon_entity_data, status)
+        SELECT 
+            $1,
+            ''new_client'',
+            ''client'',
+            jsonb_build_object(
+                ''wialon_resource_id'', twc.wialon_resource_id,
+                ''wialon_user_id'', twc.wialon_user_id,
+                ''name'', twc.name,
+                ''full_name'', twc.full_name,
+                ''description'', twc.description,
+                ''wialon_username'', twc.wialon_username
+            ),
+            ''pending''
+        FROM wialon_sync.temp_wialon_clients twc
+        WHERE twc.session_id = $1
+        AND NOT EXISTS (
+            SELECT 1 FROM clients.clients c 
+            WHERE c.wialon_resource_id = twc.wialon_resource_id
+            OR c.wialon_id = twc.wialon_user_id
+        )'
+    WHERE name = 'New Clients Detection' 
+    AND sql_query NOT LIKE '%wialon_resource_id%';
 
-    RAISE NOTICE 'Default wialon_sync data inserted';
+    RAISE NOTICE 'Default wialon_sync data inserted and updated';
 
 END $$;
 

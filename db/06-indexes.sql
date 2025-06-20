@@ -245,9 +245,9 @@ END IF;
         SELECT 1 FROM pg_indexes 
         WHERE schemaname = 'clients' 
         AND tablename = 'clients' 
-        AND indexname = 'idx_clients_name'
+        AND indexname = 'idx_clients_wialon_resource_id'
     ) THEN
-        CREATE INDEX idx_clients_name ON clients.clients(name);
+        CREATE INDEX idx_clients_wialon_resource_id ON clients.clients(wialon_resource_id);
     END IF;
 
     IF NOT EXISTS (

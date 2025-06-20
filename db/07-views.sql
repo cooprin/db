@@ -293,61 +293,64 @@ BEGIN
 
       -- Clients with details view
    DROP VIEW IF EXISTS clients.view_clients_full;
-   CREATE VIEW clients.view_clients_full AS
-   SELECT 
-       c.id,
-       c.name,
-       c.full_name,
-       c.address,
-       c.contact_person,
-       c.phone,
-       c.email,
-       c.wialon_id,
-       c.wialon_username,
-       c.is_active,
-       COUNT(DISTINCT o.id) as objects_count,
-       COUNT(DISTINCT cd.id) as documents_count,
-       array_agg(DISTINCT cont.first_name || ' ' || coalesce(cont.last_name, '') || ' (' || coalesce(cont.position, '') || ')') FILTER (WHERE cont.id IS NOT NULL) as contacts,
-       c.created_at,
-       c.updated_at
-   FROM clients.clients c
-   LEFT JOIN wialon.objects o ON c.id = o.client_id
-   LEFT JOIN clients.client_documents cd ON c.id = cd.client_id
-   LEFT JOIN clients.contacts cont ON c.id = cont.client_id
-   GROUP BY c.id;
+    CREATE VIEW clients.view_clients_full AS
+    SELECT 
+        c.id,
+        c.name,
+        c.full_name,
+        c.address,
+        c.contact_person,
+        c.phone,
+        c.email,
+        c.wialon_id,
+        c.wialon_resource_id,
+        c.wialon_username,
+        c.is_active,
+        COUNT(DISTINCT o.id) as objects_count,
+        COUNT(DISTINCT cd.id) as documents_count,
+        array_agg(DISTINCT cont.first_name || ' ' || coalesce(cont.last_name, '') || ' (' || coalesce(cont.position, '') || ')') FILTER (WHERE cont.id IS NOT NULL) as contacts,
+        c.created_at,
+        c.updated_at
+    FROM clients.clients c
+    LEFT JOIN wialon.objects o ON c.id = o.client_id
+    LEFT JOIN clients.client_documents cd ON c.id = cd.client_id
+    LEFT JOIN clients.contacts cont ON c.id = cont.client_id
+    GROUP BY c.id;
 
-   COMMENT ON VIEW clients.view_clients_full IS 'Detailed client information with counts of related entities';
+    COMMENT ON VIEW clients.view_clients_full IS 'Detailed client information with counts of related entities';
 
-   -- Wialon objects view
-   DROP VIEW IF EXISTS wialon.view_objects_full;
-   CREATE VIEW wialon.view_objects_full AS
-   SELECT 
-       o.id,
-       o.wialon_id,
-       o.name,
-       o.description,
-       o.status,
-       c.id as client_id,
-       c.name as client_name,
-       c.wialon_username as client_wialon_username,
-       t.id as current_tariff_id,
-       t.name as current_tariff_name,
-       t.price as current_tariff_price,
-       ot.effective_from as tariff_effective_from,
-       jsonb_object_agg(
-           oa.attribute_name, 
-           oa.attribute_value
-       ) FILTER (WHERE oa.id IS NOT NULL) as attributes,
-       o.created_at,
-       o.updated_at
-   FROM wialon.objects o
-   JOIN clients.clients c ON o.client_id = c.id
-   LEFT JOIN billing.object_tariffs ot ON o.id = ot.object_id AND ot.effective_to IS NULL
-   LEFT JOIN billing.tariffs t ON ot.tariff_id = t.id
-   LEFT JOIN wialon.object_attributes oa ON o.id = oa.object_id
-   GROUP BY o.id, c.id, t.id, ot.effective_from;
+    -- Wialon objects view
+    DROP VIEW IF EXISTS wialon.view_objects_full;
+    CREATE VIEW wialon.view_objects_full AS
+    SELECT 
+        o.id,
+        o.wialon_id,
+        o.name,
+        o.description,
+        o.status,
+        c.id as client_id,
+        c.name as client_name,
+        c.wialon_id as client_wialon_user_id,
+        c.wialon_resource_id as client_wialon_resource_id,
+        c.wialon_username as client_wialon_username,
+        t.id as current_tariff_id,
+        t.name as current_tariff_name,
+        t.price as current_tariff_price,
+        ot.effective_from as tariff_effective_from,
+        jsonb_object_agg(
+            oa.attribute_name, 
+            oa.attribute_value
+        ) FILTER (WHERE oa.id IS NOT NULL) as attributes,
+        o.created_at,
+        o.updated_at
+    FROM wialon.objects o
+    JOIN clients.clients c ON o.client_id = c.id
+    LEFT JOIN billing.object_tariffs ot ON o.id = ot.object_id AND ot.effective_to IS NULL
+    LEFT JOIN billing.tariffs t ON ot.tariff_id = t.id
+    LEFT JOIN wialon.object_attributes oa ON o.id = oa.object_id
+    GROUP BY o.id, c.id, t.id, ot.effective_from;
 
-   COMMENT ON VIEW wialon.view_objects_full IS 'Detailed Wialon object information with client and tariff data';
+    COMMENT ON VIEW wialon.view_objects_full IS 'Detailed Wialon object information with client and tariff data';
 
    -- Object ownership history view
    DROP VIEW IF EXISTS wialon.view_object_ownership_history;
@@ -677,40 +680,41 @@ BEGIN
    COMMENT ON VIEW wialon_sync.view_sync_sessions_full IS 'Detailed sync sessions with statistics';
 
    -- Sync discrepancies view with related data
-   DROP VIEW IF EXISTS wialon_sync.view_sync_discrepancies_full;
-   CREATE VIEW wialon_sync.view_sync_discrepancies_full AS
-   SELECT 
-       sd.id,
-       sd.session_id,
-       sd.discrepancy_type,
-       sd.entity_type,
-       sd.status,
-       sd.wialon_entity_data,
-       sd.system_entity_data,
-       sd.suggested_action,
-       sc.id as system_client_id,
-       sc.name as system_client_name,
-       so.id as system_object_id,
-       so.name as system_object_name,
-       sug_c.id as suggested_client_id,
-       sug_c.name as suggested_client_name,
-       sd.resolution_notes,
-       res_u.email as resolved_by_email,
-       res_u.first_name || ' ' || res_u.last_name as resolved_by_name,
-       sd.resolved_at,
-       ss.start_time as session_start,
-       ss.status as session_status,
-       sd.created_at
-   FROM wialon_sync.sync_discrepancies sd
-   JOIN wialon_sync.sync_sessions ss ON sd.session_id = ss.id
-   LEFT JOIN clients.clients sc ON sd.system_client_id = sc.id
-   LEFT JOIN wialon.objects so ON sd.system_object_id = so.id
-   LEFT JOIN clients.clients sug_c ON sd.suggested_client_id = sug_c.id
-   LEFT JOIN auth.users res_u ON sd.resolved_by = res_u.id
-   ORDER BY sd.created_at DESC;
+    DROP VIEW IF EXISTS wialon_sync.view_sync_discrepancies_full;
+    CREATE VIEW wialon_sync.view_sync_discrepancies_full AS
+    SELECT 
+        sd.id,
+        sd.session_id,
+        sd.discrepancy_type,
+        sd.entity_type,
+        sd.status,
+        sd.wialon_entity_data,
+        sd.system_entity_data,
+        sd.suggested_action,
+        sc.id as system_client_id,
+        sc.name as system_client_name,
+        sc.wialon_id as system_client_wialon_user_id,
+        sc.wialon_resource_id as system_client_wialon_resource_id,
+        so.id as system_object_id,
+        so.name as system_object_name,
+        sug_c.id as suggested_client_id,
+        sug_c.name as suggested_client_name,
+        sd.resolution_notes,
+        res_u.email as resolved_by_email,
+        res_u.first_name || ' ' || res_u.last_name as resolved_by_name,
+        sd.resolved_at,
+        ss.start_time as session_start,
+        ss.status as session_status,
+        sd.created_at
+    FROM wialon_sync.sync_discrepancies sd
+    JOIN wialon_sync.sync_sessions ss ON sd.session_id = ss.id
+    LEFT JOIN clients.clients sc ON sd.system_client_id = sc.id
+    LEFT JOIN wialon.objects so ON sd.system_object_id = so.id
+    LEFT JOIN clients.clients sug_c ON sd.suggested_client_id = sug_c.id
+    LEFT JOIN auth.users res_u ON sd.resolved_by = res_u.id
+    ORDER BY sd.created_at DESC;
 
-   COMMENT ON VIEW wialon_sync.view_sync_discrepancies_full IS 'Detailed sync discrepancies with related entity information';
-
+COMMENT ON VIEW wialon_sync.view_sync_discrepancies_full IS 'Detailed sync discrepancies with related entity information';
    -- Active sync rules view
     DROP VIEW IF EXISTS wialon_sync.view_sync_rules_active;
     CREATE VIEW wialon_sync.view_sync_rules_active AS
