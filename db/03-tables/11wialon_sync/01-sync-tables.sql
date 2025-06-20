@@ -137,4 +137,4 @@ BEGIN
         
         RAISE NOTICE 'Constraint for single running session created';
     END IF;
-END $;
+END $$;
