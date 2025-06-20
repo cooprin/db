@@ -471,5 +471,40 @@ BEGIN
 
         RAISE NOTICE 'Wialon token encryption functions created';
     END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE proname = 'cleanup_stale_sessions'
+    ) THEN
+        CREATE OR REPLACE FUNCTION wialon_sync.cleanup_stale_sessions()
+        RETURNS INTEGER
+        LANGUAGE plpgsql
+        AS $cleanup_func$
+        DECLARE
+            updated_count INTEGER;
+        BEGIN
+            UPDATE wialon_sync.sync_sessions 
+            SET status = 'failed',
+                end_time = CURRENT_TIMESTAMP,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE status = 'running' 
+            AND start_time < CURRENT_TIMESTAMP - INTERVAL '2 hours';
+            
+            GET DIAGNOSTICS updated_count = ROW_COUNT;
+            
+            IF updated_count > 0 THEN
+                INSERT INTO wialon_sync.sync_logs (session_id, log_level, message, details)
+                SELECT id, 'warning', 'Session marked as failed due to timeout', 
+                       jsonb_build_object('timeout_hours', 2, 'cleanup_time', CURRENT_TIMESTAMP)
+                FROM wialon_sync.sync_sessions 
+                WHERE status = 'failed' 
+                AND end_time = CURRENT_TIMESTAMP
+                AND start_time < CURRENT_TIMESTAMP - INTERVAL '2 hours';
+            END IF;
+            
+            RETURN updated_count;
+        END;
+        $cleanup_func$;
+
+        RAISE NOTICE 'Cleanup stale sessions function created';
+    END IF;
 
 END $$;
