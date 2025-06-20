@@ -89,12 +89,14 @@ BEGIN
         COMMENT ON TABLE wialon_sync.sync_logs IS 'Detailed logs of synchronization process';
         RAISE NOTICE 'Sync logs table created';
     END IF;
-        IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'only_one_running_session'
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'wialon_sync' 
+        AND tablename = 'sync_sessions' 
+        AND indexname = 'idx_only_one_running_session'
     ) THEN
-        -- Використовуємо унікальний індекс замість EXCLUDE для PostgreSQL сумісності
-        CREATE UNIQUE INDEX CONCURRENTLY idx_only_one_running_session 
+        -- Використовуємо звичайний унікальний індекс (без CONCURRENTLY)
+        CREATE UNIQUE INDEX idx_only_one_running_session 
         ON wialon_sync.sync_sessions (status) 
         WHERE status = 'running';
         
