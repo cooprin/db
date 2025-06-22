@@ -551,6 +551,62 @@ END IF;
     ) THEN
         CREATE INDEX idx_sync_logs_level_created ON wialon_sync.sync_logs(log_level, created_at);
     END IF;
+        -- Customer portal schema indexes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'customer_portal' 
+        AND tablename = 'client_sessions' 
+        AND indexname = 'idx_client_sessions_expires_at'
+    ) THEN
+        CREATE INDEX idx_client_sessions_expires_at ON customer_portal.client_sessions(expires_at);
+    END IF;
+
+    -- Tickets schema indexes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'tickets' 
+        AND tablename = 'tickets' 
+        AND indexname = 'idx_tickets_status_priority'
+    ) THEN
+        CREATE INDEX idx_tickets_status_priority ON tickets.tickets(status, priority);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'tickets' 
+        AND tablename = 'tickets' 
+        AND indexname = 'idx_tickets_client_status'
+    ) THEN
+        CREATE INDEX idx_tickets_client_status ON tickets.tickets(client_id, status);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'tickets' 
+        AND tablename = 'ticket_comments' 
+        AND indexname = 'idx_ticket_comments_visibility'
+    ) THEN
+        CREATE INDEX idx_ticket_comments_visibility ON tickets.ticket_comments(ticket_id, is_internal);
+    END IF;
+
+    -- Chat schema indexes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'chat' 
+        AND tablename = 'chat_messages' 
+        AND indexname = 'idx_chat_messages_room_created'
+    ) THEN
+        CREATE INDEX idx_chat_messages_room_created ON chat.chat_messages(room_id, created_at DESC);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'chat' 
+        AND tablename = 'chat_messages' 
+        AND indexname = 'idx_chat_messages_unread_by_room'
+    ) THEN
+        CREATE INDEX idx_chat_messages_unread_by_room ON chat.chat_messages(room_id, is_read) WHERE is_read = false;
+    END IF;
 
 
     -- Grant privileges
@@ -608,5 +664,17 @@ END IF;
     GRANT USAGE ON SCHEMA wialon_sync TO current_user;
     GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA wialon_sync TO current_user;
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA wialon_sync TO current_user;
+        -- Grant privileges for new schemas
+    GRANT USAGE ON SCHEMA customer_portal TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA customer_portal TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA customer_portal TO current_user;
+
+    GRANT USAGE ON SCHEMA tickets TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA tickets TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA tickets TO current_user;
+
+    GRANT USAGE ON SCHEMA chat TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA chat TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA chat TO current_user;
 
 END $$;

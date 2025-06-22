@@ -99,7 +99,12 @@ BEGIN
         ('Tariffs', 'tariffs', 'module'),
         ('Company Profile', 'company_profile', 'module'),
         ('Wialon Objects', 'wialon_objects', 'module'),
-        ('Wialon Sync', 'wialon_sync', 'module')
+        ('Wialon Sync', 'wialon_sync', 'module'),
+
+        -- Customer portal resources
+        ('Customer Portal', 'customer_portal', 'module'),
+        ('Tickets', 'tickets', 'module'),
+        ('Chat', 'chat', 'module')
     ) AS v (name, code, type)
     WHERE NOT EXISTS (
         SELECT 1 FROM core.resources
@@ -149,7 +154,8 @@ BEGIN
         ('operator', 'Operator with payment and invoice management', true),
         ('warehouse_manager', 'Warehouse manager with inventory control', true),
         ('accountant', 'Accountant with financial operations access', true),
-        ('viewer', 'Read-only access to main data', true)
+        ('viewer', 'Read-only access to main data', true),
+        ('client', 'Client with access to customer portal', true)
     ) AS v (name, description, is_system)
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.roles
@@ -251,6 +257,21 @@ BEGIN
     WHERE r.name = 'viewer'
     AND p.code LIKE '%.read'
     AND p.code != 'audit.read' -- exclude audit
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+    -- CLIENT: only portal access with read permissions for own data
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    WHERE r.name = 'client'
+    AND p.code IN (
+        'customer_portal.read',
+        'tickets.read', 'tickets.create', 'tickets.update',
+        'chat.read', 'chat.create'
+    )
     AND NOT EXISTS (
         SELECT 1 FROM auth.role_permissions
         WHERE role_id = r.id AND permission_id = p.id

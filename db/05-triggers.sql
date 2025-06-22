@@ -1086,6 +1086,149 @@ BEGIN
            FOR EACH ROW
            EXECUTE FUNCTION audit.log_table_change();
    END IF;
+   -- Customer portal schema triggers
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_client_sessions_timestamp'
+   ) THEN
+       CREATE TRIGGER update_client_sessions_timestamp
+           BEFORE UPDATE ON customer_portal.client_sessions
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   -- Tickets schema triggers
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_ticket_categories_timestamp'
+   ) THEN
+       CREATE TRIGGER update_ticket_categories_timestamp
+           BEFORE UPDATE ON tickets.ticket_categories
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_tickets_timestamp'
+   ) THEN
+       CREATE TRIGGER update_tickets_timestamp
+           BEFORE UPDATE ON tickets.tickets
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_ticket_comments_timestamp'
+   ) THEN
+       CREATE TRIGGER update_ticket_comments_timestamp
+           BEFORE UPDATE ON tickets.ticket_comments
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   -- Chat schema triggers
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_chat_rooms_timestamp'
+   ) THEN
+       CREATE TRIGGER update_chat_rooms_timestamp
+           BEFORE UPDATE ON chat.chat_rooms
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_external_integrations_timestamp'
+   ) THEN
+       CREATE TRIGGER update_external_integrations_timestamp
+           BEFORE UPDATE ON chat.external_integrations
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   -- Audit triggers for new schemas
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_client_sessions_changes'
+   ) THEN
+       CREATE TRIGGER audit_client_sessions_changes
+           AFTER INSERT OR UPDATE OR DELETE ON customer_portal.client_sessions
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_ticket_categories_changes'
+   ) THEN
+       CREATE TRIGGER audit_ticket_categories_changes
+           AFTER INSERT OR UPDATE OR DELETE ON tickets.ticket_categories
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_tickets_changes'
+   ) THEN
+       CREATE TRIGGER audit_tickets_changes
+           AFTER INSERT OR UPDATE OR DELETE ON tickets.tickets
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_ticket_comments_changes'
+   ) THEN
+       CREATE TRIGGER audit_ticket_comments_changes
+           AFTER INSERT OR UPDATE OR DELETE ON tickets.ticket_comments
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_ticket_files_changes'
+   ) THEN
+       CREATE TRIGGER audit_ticket_files_changes
+           AFTER INSERT OR UPDATE OR DELETE ON tickets.ticket_files
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_chat_rooms_changes'
+   ) THEN
+       CREATE TRIGGER audit_chat_rooms_changes
+           AFTER INSERT OR UPDATE OR DELETE ON chat.chat_rooms
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_chat_messages_changes'
+   ) THEN
+       CREATE TRIGGER audit_chat_messages_changes
+           AFTER INSERT OR UPDATE OR DELETE ON chat.chat_messages
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_external_integrations_changes'
+   ) THEN
+       CREATE TRIGGER audit_external_integrations_changes
+           AFTER INSERT OR UPDATE OR DELETE ON chat.external_integrations
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
 
 END;
 

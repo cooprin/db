@@ -87,6 +87,29 @@ BEGIN
         CREATE SCHEMA wialon_sync;
         RAISE NOTICE 'Wialon_sync schema created';
     END IF;
+    -- Create customer_portal schema
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.schemata WHERE schema_name = 'customer_portal'
+    ) THEN
+        CREATE SCHEMA customer_portal;
+        RAISE NOTICE 'Customer_portal schema created';
+    END IF;
+
+    -- Create tickets schema
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.schemata WHERE schema_name = 'tickets'
+    ) THEN
+        CREATE SCHEMA tickets;
+        RAISE NOTICE 'Tickets schema created';
+    END IF;
+
+    -- Create chat schema
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.schemata WHERE schema_name = 'chat'
+    ) THEN
+        CREATE SCHEMA chat;
+        RAISE NOTICE 'Chat schema created';
+    END IF;
 
     -- Grant usage to public
     GRANT USAGE ON SCHEMA auth TO PUBLIC;
@@ -100,4 +123,7 @@ BEGIN
     GRANT USAGE ON SCHEMA wialon TO PUBLIC;
     GRANT USAGE ON SCHEMA company TO PUBLIC;
     GRANT USAGE ON SCHEMA wialon_sync TO PUBLIC;
+    GRANT USAGE ON SCHEMA customer_portal TO PUBLIC;
+    GRANT USAGE ON SCHEMA tickets TO PUBLIC;
+    GRANT USAGE ON SCHEMA chat TO PUBLIC;
 END $$;

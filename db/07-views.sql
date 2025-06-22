@@ -784,4 +784,152 @@ COMMENT ON VIEW wialon_sync.view_sync_discrepancies_full IS 'Detailed sync discr
 
    COMMENT ON VIEW wialon_sync.view_sync_logs_recent IS 'Recent sync logs from last 30 days';
 
+-- Customer portal views
+   DROP VIEW IF EXISTS customer_portal.view_active_client_sessions;
+   CREATE VIEW customer_portal.view_active_client_sessions AS
+   SELECT 
+       cs.id,
+       cs.client_id,
+       c.name as client_name,
+       c.email as client_email,
+       cs.wialon_session_id,
+       cs.expires_at,
+       cs.ip_address,
+       cs.is_active,
+       cs.created_at,
+       cs.updated_at
+   FROM customer_portal.client_sessions cs
+   JOIN clients.clients c ON cs.client_id = c.id
+   WHERE cs.is_active = true
+   AND (cs.expires_at IS NULL OR cs.expires_at > CURRENT_TIMESTAMP)
+   ORDER BY cs.created_at DESC;
+
+   COMMENT ON VIEW customer_portal.view_active_client_sessions IS 'Active client sessions with client details';
+
+   -- Tickets views
+   DROP VIEW IF EXISTS tickets.view_tickets_full;
+   CREATE VIEW tickets.view_tickets_full AS
+   SELECT 
+       t.id,
+       t.ticket_number,
+       t.title,
+       t.description,
+       t.priority,
+       t.status,
+       c.id as client_id,
+       c.name as client_name,
+       c.email as client_email,
+       tc.name as category_name,
+       tc.color as category_color,
+       tc.icon as category_icon,
+       wo.id as object_id,
+       wo.name as object_name,
+       u.first_name || ' ' || u.last_name as assigned_to_name,
+       u.email as assigned_to_email,
+       t.resolved_at,
+       t.closed_at,
+       t.created_at,
+       t.updated_at,
+       COUNT(tcm.id) as comments_count,
+       COUNT(tf.id) as files_count
+   FROM tickets.tickets t
+   JOIN clients.clients c ON t.client_id = c.id
+   LEFT JOIN tickets.ticket_categories tc ON t.category_id = tc.id
+   LEFT JOIN wialon.objects wo ON t.object_id = wo.id
+   LEFT JOIN auth.users u ON t.assigned_to = u.id
+   LEFT JOIN tickets.ticket_comments tcm ON t.id = tcm.ticket_id
+   LEFT JOIN tickets.ticket_files tf ON t.id = tf.ticket_id
+   GROUP BY t.id, c.id, tc.id, wo.id, u.id
+   ORDER BY t.created_at DESC;
+
+   COMMENT ON VIEW tickets.view_tickets_full IS 'Detailed ticket information with related data';
+
+   -- Client tickets view (only non-internal comments)
+   DROP VIEW IF EXISTS tickets.view_client_tickets;
+   CREATE VIEW tickets.view_client_tickets AS
+   SELECT 
+       t.id,
+       t.ticket_number,
+       t.title,
+       t.description,
+       t.priority,
+       t.status,
+       t.client_id,
+       tc.name as category_name,
+       tc.color as category_color,
+       wo.name as object_name,
+       t.resolved_at,
+       t.closed_at,
+       t.created_at,
+       t.updated_at,
+       COUNT(tcm.id) as public_comments_count,
+       MAX(tcm.created_at) as last_comment_at
+   FROM tickets.tickets t
+   LEFT JOIN tickets.ticket_categories tc ON t.category_id = tc.id
+   LEFT JOIN wialon.objects wo ON t.object_id = wo.id
+   LEFT JOIN tickets.ticket_comments tcm ON t.id = tcm.ticket_id AND tcm.is_internal = false
+   GROUP BY t.id, tc.id, wo.id
+   ORDER BY t.created_at DESC;
+
+   COMMENT ON VIEW tickets.view_client_tickets IS 'Client view of tickets without internal comments';
+
+   -- Chat views
+   DROP VIEW IF EXISTS chat.view_chat_rooms_full;
+   CREATE VIEW chat.view_chat_rooms_full AS
+   SELECT 
+       cr.id,
+       cr.client_id,
+       c.name as client_name,
+       c.email as client_email,
+       cr.ticket_id,
+       t.ticket_number,
+       t.title as ticket_title,
+       cr.room_type,
+       cr.assigned_staff_id,
+       u.first_name || ' ' || u.last_name as assigned_staff_name,
+       cr.is_active,
+       cr.last_message_at,
+       COUNT(cm.id) as total_messages,
+       COUNT(CASE WHEN cm.is_read = false AND cm.sender_type = 'client' THEN 1 END) as unread_client_messages,
+       COUNT(CASE WHEN cm.is_read = false AND cm.sender_type = 'staff' THEN 1 END) as unread_staff_messages,
+       cr.created_at,
+       cr.updated_at
+   FROM chat.chat_rooms cr
+   JOIN clients.clients c ON cr.client_id = c.id
+   LEFT JOIN tickets.tickets t ON cr.ticket_id = t.id
+   LEFT JOIN auth.users u ON cr.assigned_staff_id = u.id
+   LEFT JOIN chat.chat_messages cm ON cr.id = cm.room_id
+   GROUP BY cr.id, c.id, t.id, u.id
+   ORDER BY cr.last_message_at DESC NULLS LAST;
+
+   COMMENT ON VIEW chat.view_chat_rooms_full IS 'Detailed chat room information with message statistics';
+
+   -- Recent chat messages view
+   DROP VIEW IF EXISTS chat.view_recent_messages;
+   CREATE VIEW chat.view_recent_messages AS
+   SELECT 
+       cm.id,
+       cm.room_id,
+       cm.message_text,
+       cm.sender_id,
+       cm.sender_type,
+       cm.is_read,
+       cm.read_at,
+       cm.external_platform,
+       cm.created_at,
+       CASE 
+           WHEN cm.sender_type = 'client' THEN c.name
+           WHEN cm.sender_type = 'staff' THEN u.first_name || ' ' || u.last_name
+       END as sender_name,
+       COUNT(cf.id) as files_count
+   FROM chat.chat_messages cm
+   LEFT JOIN chat.chat_rooms cr ON cm.room_id = cr.id
+   LEFT JOIN clients.clients c ON (cm.sender_type = 'client' AND cm.sender_id = c.id)
+   LEFT JOIN auth.users u ON (cm.sender_type = 'staff' AND cm.sender_id = u.id)
+   LEFT JOIN chat.chat_files cf ON cm.id = cf.message_id
+   WHERE cm.created_at >= CURRENT_DATE - INTERVAL '30 days'
+   GROUP BY cm.id, c.name, u.first_name, u.last_name
+   ORDER BY cm.created_at DESC;
+
+   COMMENT ON VIEW chat.view_recent_messages IS 'Recent chat messages from last 30 days with sender details';
 END $$;
