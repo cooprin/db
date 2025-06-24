@@ -42,7 +42,8 @@ BEGIN
             assigned_to UUID,
             resolved_at TIMESTAMP WITH TIME ZONE,
             closed_at TIMESTAMP WITH TIME ZONE,
-            created_by UUID NOT NULL,
+            created_by UUID,
+            created_by_type VARCHAR(20),
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_tickets_client FOREIGN KEY (client_id) 
@@ -53,10 +54,13 @@ BEGIN
                 REFERENCES wialon.objects(id) ON DELETE SET NULL,
             CONSTRAINT fk_tickets_assigned_to FOREIGN KEY (assigned_to) 
                 REFERENCES auth.users(id) ON DELETE SET NULL,
-            CONSTRAINT fk_tickets_created_by FOREIGN KEY (created_by) 
-                REFERENCES auth.users(id) ON DELETE SET NULL,
             CONSTRAINT chk_tickets_priority CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
-            CONSTRAINT chk_tickets_status CHECK (status IN ('open', 'in_progress', 'waiting_client', 'resolved', 'closed', 'cancelled'))
+            CONSTRAINT chk_tickets_status CHECK (status IN ('open', 'in_progress', 'waiting_client', 'resolved', 'closed', 'cancelled')),
+            CONSTRAINT chk_tickets_created_by_type CHECK (created_by_type IN ('client', 'staff')),
+            CONSTRAINT chk_tickets_staff_created_by CHECK (
+                (created_by_type = 'staff' AND created_by IS NOT NULL) OR 
+                (created_by_type = 'client')
+            )
         );
 
         CREATE INDEX idx_tickets_client_id ON tickets.tickets(client_id);
@@ -66,8 +70,11 @@ BEGIN
         CREATE INDEX idx_tickets_category_id ON tickets.tickets(category_id);
         CREATE INDEX idx_tickets_object_id ON tickets.tickets(object_id);
         CREATE INDEX idx_tickets_created_at ON tickets.tickets(created_at DESC);
+        CREATE INDEX idx_tickets_created_by ON tickets.tickets(created_by, created_by_type);
 
         COMMENT ON TABLE tickets.tickets IS 'Client support tickets and requests';
+        COMMENT ON COLUMN tickets.tickets.created_by IS 'ID of entity that created the ticket (client_id for clients, user_id for staff)';
+        COMMENT ON COLUMN tickets.tickets.created_by_type IS 'Type of entity that created the ticket: client or staff';
         RAISE NOTICE 'Tickets table created';
     END IF;
 
@@ -87,8 +94,8 @@ BEGIN
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT fk_ticket_comments_ticket FOREIGN KEY (ticket_id) 
                 REFERENCES tickets.tickets(id) ON DELETE CASCADE,
-            CONSTRAINT chk_created_by_type CHECK (created_by_type IN ('client', 'staff')),
-            CONSTRAINT chk_internal_comments CHECK (
+            CONSTRAINT chk_ticket_comments_created_by_type CHECK (created_by_type IN ('client', 'staff')),
+            CONSTRAINT chk_ticket_comments_internal CHECK (
                 (is_internal = false) OR 
                 (is_internal = true AND created_by_type = 'staff')
             )
@@ -100,6 +107,8 @@ BEGIN
         CREATE INDEX idx_ticket_comments_internal ON tickets.ticket_comments(is_internal);
 
         COMMENT ON TABLE tickets.ticket_comments IS 'Comments and updates for tickets';
+        COMMENT ON COLUMN tickets.ticket_comments.created_by IS 'ID of entity that created the comment (client_id for clients, user_id for staff)';
+        COMMENT ON COLUMN tickets.ticket_comments.created_by_type IS 'Type of entity that created the comment: client or staff';
         RAISE NOTICE 'Ticket comments table created';
     END IF;
 
@@ -124,7 +133,7 @@ BEGIN
                 REFERENCES tickets.tickets(id) ON DELETE CASCADE,
             CONSTRAINT fk_ticket_files_comment FOREIGN KEY (comment_id) 
                 REFERENCES tickets.ticket_comments(id) ON DELETE SET NULL,
-            CONSTRAINT chk_uploaded_by_type CHECK (uploaded_by_type IN ('client', 'staff'))
+            CONSTRAINT chk_ticket_files_uploaded_by_type CHECK (uploaded_by_type IN ('client', 'staff'))
         );
 
         CREATE INDEX idx_ticket_files_ticket_id ON tickets.ticket_files(ticket_id);
@@ -133,6 +142,8 @@ BEGIN
         CREATE INDEX idx_ticket_files_created_at ON tickets.ticket_files(created_at);
 
         COMMENT ON TABLE tickets.ticket_files IS 'Files attached to tickets and comments';
+        COMMENT ON COLUMN tickets.ticket_files.uploaded_by IS 'ID of entity that uploaded the file (client_id for clients, user_id for staff)';
+        COMMENT ON COLUMN tickets.ticket_files.uploaded_by_type IS 'Type of entity that uploaded the file: client or staff';
         RAISE NOTICE 'Ticket files table created';
     END IF;
 END $$;
