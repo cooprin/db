@@ -56,29 +56,29 @@ BEGIN
         SELECT 1 FROM information_schema.tables 
         WHERE table_schema = 'services' AND table_name = 'invoices'
     ) THEN
-        CREATE TABLE services.invoices (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            client_id UUID NOT NULL,
-            invoice_number VARCHAR(50) NOT NULL,
-            invoice_date DATE NOT NULL,
-            billing_month INTEGER NOT NULL,
-            billing_year INTEGER NOT NULL,
-            total_amount DECIMAL(10,2) NOT NULL,
-            status VARCHAR(50) DEFAULT 'issued',
-            payment_id UUID,
-            notes TEXT,
-            created_by UUID,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT fk_invoices_client FOREIGN KEY (client_id) 
-                REFERENCES clients.clients(id),
-            -- Видалено constraint: CONSTRAINT fk_invoices_payment FOREIGN KEY (payment_id) REFERENCES billing.payments(id)
-            CONSTRAINT fk_invoices_user FOREIGN KEY (created_by) 
-                REFERENCES auth.users(id) ON DELETE SET NULL,
-            CONSTRAINT chk_invoice_status CHECK (status IN ('draft', 'issued', 'paid', 'cancelled')),
-            CONSTRAINT chk_invoice_billing_month CHECK (billing_month BETWEEN 1 AND 12),
-            CONSTRAINT chk_invoice_billing_year CHECK (billing_year BETWEEN 2000 AND 2100)
-        );
+    CREATE TABLE services.invoices (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        client_id UUID NOT NULL,
+        invoice_number VARCHAR(50) NOT NULL,
+        invoice_date DATE NOT NULL,
+        billing_month INTEGER NOT NULL,
+        billing_year INTEGER NOT NULL,
+        total_amount DECIMAL(10,2) NOT NULL,
+        status VARCHAR(50) DEFAULT 'issued',
+        payment_id UUID,
+        notes TEXT,
+        created_by UUID,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        -- ТУТ НЕ БУДЕ template_id!
+        CONSTRAINT fk_invoices_client FOREIGN KEY (client_id) 
+            REFERENCES clients.clients(id),
+        CONSTRAINT fk_invoices_user FOREIGN KEY (created_by) 
+            REFERENCES auth.users(id) ON DELETE SET NULL,
+        CONSTRAINT chk_invoice_status CHECK (status IN ('draft', 'issued', 'paid', 'cancelled')),
+        CONSTRAINT chk_invoice_billing_month CHECK (billing_month BETWEEN 1 AND 12),
+        CONSTRAINT chk_invoice_billing_year CHECK (billing_year BETWEEN 2000 AND 2100)
+    );
 
         CREATE UNIQUE INDEX idx_invoice_number ON services.invoices(invoice_number);
 

@@ -912,28 +912,6 @@ BEGIN
        RAISE NOTICE 'Trigger for updating object-based service prices created';
    END IF;
 
-   -- Invoice templates table
-   IF NOT EXISTS (
-       SELECT 1 FROM pg_trigger 
-       WHERE tgname = 'update_invoice_templates_timestamp'
-   ) THEN
-       CREATE TRIGGER update_invoice_templates_timestamp
-           BEFORE UPDATE ON billing.invoice_templates
-           FOR EACH ROW
-           EXECUTE FUNCTION core.update_timestamp();
-   END IF;
-
-   -- Audit trigger for invoice templates
-   IF NOT EXISTS (
-       SELECT 1 FROM pg_trigger 
-       WHERE tgname = 'audit_invoice_templates_changes'
-   ) THEN
-       CREATE TRIGGER audit_invoice_templates_changes
-           AFTER INSERT OR UPDATE OR DELETE ON billing.invoice_templates
-           FOR EACH ROW
-           EXECUTE FUNCTION audit.log_table_change();
-   END IF;
-
    -- Company schema triggers
    IF NOT EXISTS (
        SELECT 1 FROM pg_trigger 
