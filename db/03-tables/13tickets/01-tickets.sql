@@ -41,7 +41,9 @@ BEGIN
             status VARCHAR(20) DEFAULT 'open',
             assigned_to UUID,
             resolved_at TIMESTAMP WITH TIME ZONE,
+            resolved_by UUID,
             closed_at TIMESTAMP WITH TIME ZONE,
+            closed_by UUID,
             created_by UUID,
             created_by_type VARCHAR(20),
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -53,6 +55,10 @@ BEGIN
             CONSTRAINT fk_tickets_object FOREIGN KEY (object_id) 
                 REFERENCES wialon.objects(id) ON DELETE SET NULL,
             CONSTRAINT fk_tickets_assigned_to FOREIGN KEY (assigned_to) 
+                REFERENCES auth.users(id) ON DELETE SET NULL,
+            CONSTRAINT fk_tickets_resolved_by FOREIGN KEY (resolved_by) 
+                REFERENCES auth.users(id) ON DELETE SET NULL,
+            CONSTRAINT fk_tickets_closed_by FOREIGN KEY (closed_by) 
                 REFERENCES auth.users(id) ON DELETE SET NULL,
             CONSTRAINT chk_tickets_priority CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
             CONSTRAINT chk_tickets_status CHECK (status IN ('open', 'in_progress', 'waiting_client', 'resolved', 'closed', 'cancelled')),
@@ -71,6 +77,8 @@ BEGIN
         CREATE INDEX idx_tickets_object_id ON tickets.tickets(object_id);
         CREATE INDEX idx_tickets_created_at ON tickets.tickets(created_at DESC);
         CREATE INDEX idx_tickets_created_by ON tickets.tickets(created_by, created_by_type);
+        CREATE INDEX idx_tickets_resolved_by ON tickets.tickets(resolved_by);
+        CREATE INDEX idx_tickets_closed_by ON tickets.tickets(closed_by);
 
         COMMENT ON TABLE tickets.tickets IS 'Client support tickets and requests';
         COMMENT ON COLUMN tickets.tickets.created_by IS 'ID of entity that created the ticket (client_id for clients, user_id for staff)';
