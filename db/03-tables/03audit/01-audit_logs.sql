@@ -4,7 +4,9 @@ CREATE SCHEMA IF NOT EXISTS audit;
 -- Створюємо таблицю для зберігання логів
 CREATE TABLE IF NOT EXISTS audit.audit_logs (
     id SERIAL PRIMARY KEY,
-    user_id UUID NOT NULL,
+    user_id UUID,
+    client_id UUID,
+    user_type VARCHAR(10) CHECK (user_type IN ('staff', 'client')),
     action_type TEXT NOT NULL,
     entity_type TEXT NOT NULL,
     entity_id TEXT,  -- Змінюємо тип на TEXT для підтримки різних форматів ID

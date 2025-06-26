@@ -9,6 +9,17 @@ DECLARE
     entity_name TEXT;
 BEGIN 
     -- Отримуємо ID користувача
+DECLARE
+    acting_user_id UUID;
+    acting_client_id UUID;
+    acting_user_type VARCHAR(10);
+    client_ip INET;
+    browser_info JSONB;
+    user_agent TEXT;
+    changes_json JSONB;
+    entity_name TEXT;
+BEGIN 
+    -- Отримуємо ID користувача та клієнта
     BEGIN
         acting_user_id := CASE 
             WHEN TG_TABLE_NAME = 'users' AND TG_OP = 'DELETE' THEN OLD.id
@@ -16,7 +27,25 @@ BEGIN
             ELSE current_setting('audit.user_id', false)::uuid
         END;
     EXCEPTION WHEN OTHERS THEN
-        acting_user_id := '00000000-0000-0000-0000-000000000000'::uuid;
+        acting_user_id := NULL;
+    END;
+
+    -- Отримуємо client_id
+    BEGIN
+        acting_client_id := current_setting('audit.client_id', false)::uuid;
+    EXCEPTION WHEN OTHERS THEN
+        acting_client_id := NULL;
+    END;
+
+    -- Отримуємо user_type
+    BEGIN
+        acting_user_type := current_setting('audit.user_type', false);
+    EXCEPTION WHEN OTHERS THEN
+        acting_user_type := CASE 
+            WHEN acting_user_id IS NOT NULL THEN 'staff'
+            WHEN acting_client_id IS NOT NULL THEN 'client'
+            ELSE NULL
+        END;
     END;
 
     -- Отримуємо IP клієнта
@@ -74,9 +103,11 @@ BEGIN
         ELSE UPPER(TG_TABLE_NAME)
     END;
 
-    -- Записуємо в лог
+        -- Записуємо в лог
     INSERT INTO audit.audit_logs(
         user_id,
+        client_id,
+        user_type,
         action_type,
         entity_type,
         entity_id,
@@ -91,6 +122,8 @@ BEGIN
         audit_type
     ) VALUES (
         acting_user_id,
+        acting_client_id,
+        acting_user_type,
         TG_OP,
         entity_name,
         CASE 

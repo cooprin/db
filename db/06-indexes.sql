@@ -83,6 +83,43 @@ BEGIN
         ON audit.audit_logs(entity_type, entity_id, created_at);
     END IF;
 
+    -- Additional indexes for client audit support
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'audit' 
+        AND tablename = 'audit_logs' 
+        AND indexname = 'idx_audit_logs_client'
+    ) THEN
+        CREATE INDEX idx_audit_logs_client ON audit.audit_logs(client_id);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'audit' 
+        AND tablename = 'audit_logs' 
+        AND indexname = 'idx_audit_logs_user_type'
+    ) THEN
+        CREATE INDEX idx_audit_logs_user_type ON audit.audit_logs(user_type);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'audit' 
+        AND tablename = 'audit_logs' 
+        AND indexname = 'idx_audit_logs_user_type_created'
+    ) THEN
+        CREATE INDEX idx_audit_logs_user_type_created ON audit.audit_logs(user_type, created_at DESC);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'audit' 
+        AND tablename = 'audit_logs' 
+        AND indexname = 'idx_audit_logs_client_created'
+    ) THEN
+        CREATE INDEX idx_audit_logs_client_created ON audit.audit_logs(client_id, created_at DESC);
+    END IF;
+
     -- Products schema indexes
     IF NOT EXISTS (
         SELECT 1 FROM pg_indexes 

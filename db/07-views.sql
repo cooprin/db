@@ -89,14 +89,55 @@ BEGIN
        al.entity_id,
        al.old_values,
        al.new_values,
+       al.changes,
        al.ip_address,
+       al.user_type,
+       al.audit_type,
        al.created_at,
        u.email as user_email,
-       u.first_name || ' ' || u.last_name as user_full_name
+       u.first_name || ' ' || u.last_name as user_full_name,
+       al.client_id,
+       c.name as client_name
    FROM audit.audit_logs al
-   LEFT JOIN auth.users u ON al.user_id = u.id;
+   LEFT JOIN auth.users u ON al.user_id = u.id
+   LEFT JOIN clients.clients c ON al.client_id = c.id;
 
    COMMENT ON VIEW audit.view_audit_logs_with_users IS 'Audit logs with user details';
+
+   -- Combined audit logs view with both staff and clients
+   DROP VIEW IF EXISTS audit.view_audit_logs_combined;
+   CREATE VIEW audit.view_audit_logs_combined AS
+   SELECT 
+       al.id,
+       al.action_type,
+       al.entity_type,
+       al.entity_id,
+       al.old_values,
+       al.new_values,
+       al.changes,
+       al.ip_address,
+       al.user_type,
+       al.audit_type,
+       al.created_at,
+       CASE 
+           WHEN al.user_type = 'staff' THEN u.email
+           WHEN al.user_type = 'client' THEN c.name
+           ELSE 'System'
+       END as user_display_name,
+       CASE 
+           WHEN al.user_type = 'staff' THEN u.first_name || ' ' || u.last_name
+           WHEN al.user_type = 'client' THEN c.name
+           ELSE 'System Action'
+       END as user_full_name,
+       u.email as staff_email,
+       c.name as client_name,
+       c.email as client_email,
+       c.wialon_username as client_wialon_username
+   FROM audit.audit_logs al
+   LEFT JOIN auth.users u ON al.user_id = u.id AND al.user_type = 'staff'
+   LEFT JOIN clients.clients c ON al.client_id = c.id AND al.user_type = 'client';
+
+   COMMENT ON VIEW audit.view_audit_logs_combined IS 'Combined audit logs with both staff and client information';
 
    -- Products view with characteristics
    DROP VIEW IF EXISTS products.view_products_full;
