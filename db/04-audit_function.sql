@@ -2,15 +2,6 @@ CREATE OR REPLACE FUNCTION audit.log_table_change()
 RETURNS TRIGGER AS $$ 
 DECLARE
     acting_user_id UUID;
-    client_ip INET;
-    browser_info JSONB;
-    user_agent TEXT;
-    changes_json JSONB;
-    entity_name TEXT;
-BEGIN 
-    -- Отримуємо ID користувача
-DECLARE
-    acting_user_id UUID;
     acting_client_id UUID;
     acting_user_type VARCHAR(10);
     client_ip INET;
@@ -103,7 +94,7 @@ BEGIN
         ELSE UPPER(TG_TABLE_NAME)
     END;
 
-        -- Записуємо в лог
+    -- Записуємо в лог
     INSERT INTO audit.audit_logs(
         user_id,
         client_id,
