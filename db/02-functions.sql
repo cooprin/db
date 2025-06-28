@@ -507,30 +507,6 @@ BEGIN
         RAISE NOTICE 'Cleanup stale sessions function created';
     END IF;
 
-    -- Функція для отримання користувачів з певним дозволом
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_proc WHERE proname = 'get_users_with_permission'
-    ) THEN
-        CREATE OR REPLACE FUNCTION notifications.get_users_with_permission(
-            p_permission_code TEXT
-        )
-        RETURNS TABLE(user_id UUID, user_email VARCHAR(255))
-        LANGUAGE plpgsql
-        AS $func$
-        BEGIN
-            RETURN QUERY
-            SELECT DISTINCT u.id, u.email
-            FROM auth.users u
-            JOIN auth.user_roles ur ON u.id = ur.user_id
-            JOIN auth.role_permissions rp ON ur.role_id = rp.role_id
-            JOIN auth.permissions p ON rp.permission_id = p.id
-            WHERE p.code = p_permission_code
-            AND u.is_active = true;
-        END;
-        $func$;
-
-        RAISE NOTICE 'Function get_users_with_permission created';
-    END IF;
 
     -- Функція для створення одиночного сповіщення
     IF NOT EXISTS (
