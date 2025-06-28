@@ -645,6 +645,74 @@ END IF;
         CREATE INDEX idx_chat_messages_unread_by_room ON chat.chat_messages(room_id, is_read) WHERE is_read = false;
     END IF;
 
+    -- Notifications schema indexes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'notifications' 
+        AND tablename = 'notifications' 
+        AND indexname = 'idx_notifications_recipient_unread'
+    ) THEN
+        CREATE INDEX idx_notifications_recipient_unread 
+        ON notifications.notifications(recipient_id, recipient_type, is_read, created_at DESC);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'notifications' 
+        AND tablename = 'notifications' 
+        AND indexname = 'idx_notifications_expires'
+    ) THEN
+        CREATE INDEX idx_notifications_expires 
+        ON notifications.notifications(expires_at) WHERE expires_at IS NOT NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'notifications' 
+        AND tablename = 'notifications' 
+        AND indexname = 'idx_notifications_type_created'
+    ) THEN
+        CREATE INDEX idx_notifications_type_created 
+        ON notifications.notifications(notification_type, created_at DESC);
+    END IF;
+
+    -- Chat schema additional indexes
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'chat' 
+        AND tablename = 'chat_rooms' 
+        AND indexname = 'idx_chat_rooms_status'
+    ) THEN
+        CREATE INDEX idx_chat_rooms_status ON chat.chat_rooms(room_status);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'chat' 
+        AND tablename = 'chat_rooms' 
+        AND indexname = 'idx_chat_rooms_closed'
+    ) THEN
+        CREATE INDEX idx_chat_rooms_closed ON chat.chat_rooms(closed_at, closed_by);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'chat' 
+        AND tablename = 'chat_messages' 
+        AND indexname = 'idx_chat_messages_status'
+    ) THEN
+        CREATE INDEX idx_chat_messages_status ON chat.chat_messages(message_status);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'chat' 
+        AND tablename = 'chat_messages' 
+        AND indexname = 'idx_chat_messages_delivered'
+    ) THEN
+        CREATE INDEX idx_chat_messages_delivered ON chat.chat_messages(delivered_at);
+    END IF;
+
 
     -- Grant privileges
     -- Auth schema
@@ -713,5 +781,9 @@ END IF;
     GRANT USAGE ON SCHEMA chat TO current_user;
     GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA chat TO current_user;
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA chat TO current_user;
+
+    GRANT USAGE ON SCHEMA notifications TO current_user;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA notifications TO current_user;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA notifications TO current_user;
 
 END $$;

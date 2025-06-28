@@ -1208,6 +1208,372 @@ BEGIN
            EXECUTE FUNCTION audit.log_table_change();
    END IF;
 
+   -- Тригер для сповіщень про нові заявки
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_proc 
+       WHERE proname = 'notify_new_ticket' 
+       AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'tickets')
+   ) THEN
+       CREATE OR REPLACE FUNCTION tickets.notify_new_ticket()
+       RETURNS TRIGGER 
+       LANGUAGE plpgsql
+       AS $function$
+       BEGIN
+           -- Сповіщення всім користувачам з дозволом tickets.read
+           PERFORM notifications.create_group_notifications(
+               'tickets.read',
+               'new_ticket',
+               'Нова заявка #' || NEW.ticket_number,
+               'Створено нову заявку: ' || NEW.title,
+               'ticket',
+               NEW.id,
+               jsonb_build_object(
+                   'ticket_id', NEW.id,
+                   'ticket_number', NEW.ticket_number,
+                   'priority', NEW.priority,
+                   'client_id', NEW.client_id
+               )
+           );
+           
+           RETURN NEW;
+       END;
+       $function$;
+
+       CREATE TRIGGER notify_new_ticket_trigger
+           AFTER INSERT ON tickets.tickets
+           FOR EACH ROW
+           EXECUTE FUNCTION tickets.notify_new_ticket();
+
+       RAISE NOTICE 'Trigger for new ticket notifications created';
+   END IF;
+
+   -- Тригер для сповіщень про призначення заявки
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_proc 
+       WHERE proname = 'notify_ticket_assignment' 
+       AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'tickets')
+   ) THEN
+       CREATE OR REPLACE FUNCTION tickets.notify_ticket_assignment()
+       RETURNS TRIGGER 
+       LANGUAGE plpgsql
+       AS $function$
+       BEGIN
+           -- Якщо заявку призначили користувачу
+           IF OLD.assigned_to IS DISTINCT FROM NEW.assigned_to AND NEW.assigned_to IS NOT NULL THEN
+               PERFORM notifications.create_notification(
+                   NEW.assigned_to,
+                   'staff',
+                   'ticket_assigned',
+                   'Вам призначено заявку #' || NEW.ticket_number,
+                   'Заявка: ' || NEW.title,
+                   'ticket',
+                   NEW.id,
+                   jsonb_build_object(
+                       'ticket_id', NEW.id,
+                       'ticket_number', NEW.ticket_number,
+                       'priority', NEW.priority
+                   )
+               );
+           END IF;
+           
+           -- Якщо змінився статус - сповіщення клієнту
+           IF OLD.status IS DISTINCT FROM NEW.status THEN
+               PERFORM notifications.create_notification(
+                   NEW.client_id,
+                   'client',
+                   'ticket_updated',
+                   'Статус заявки #' || NEW.ticket_number || ' змінено',
+                   'Новий статус: ' || NEW.status,
+                   'ticket',
+                   NEW.id,
+                   jsonb_build_object(
+                       'ticket_id', NEW.id,
+                       'ticket_number', NEW.ticket_number,
+                       'old_status', OLD.status,
+                       'new_status', NEW.status
+                   )
+               );
+           END IF;
+           
+           RETURN NEW;
+       END;
+       $function$;
+
+       CREATE TRIGGER notify_ticket_assignment_trigger
+           AFTER UPDATE ON tickets.tickets
+           FOR EACH ROW
+           EXECUTE FUNCTION tickets.notify_ticket_assignment();
+
+       RAISE NOTICE 'Trigger for ticket assignment notifications created';
+   END IF;
+
+   -- Тригер для сповіщень про коментарі до заявок
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_proc 
+       WHERE proname = 'notify_ticket_comment' 
+       AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'tickets')
+   ) THEN
+       CREATE OR REPLACE FUNCTION tickets.notify_ticket_comment()
+       RETURNS TRIGGER 
+       LANGUAGE plpgsql
+       AS $function$
+       DECLARE
+           ticket_record RECORD;
+       BEGIN
+           -- Отримуємо інформацію про заявку
+           SELECT t.*, c.name as client_name 
+           INTO ticket_record
+           FROM tickets.tickets t
+           JOIN clients.clients c ON t.client_id = c.id
+           WHERE t.id = NEW.ticket_id;
+           
+           -- Якщо коментар від клієнта
+           IF NEW.created_by_type = 'client' THEN
+               -- Сповіщення призначеному користувачу або всім з дозволом
+               IF ticket_record.assigned_to IS NOT NULL THEN
+                   PERFORM notifications.create_notification(
+                       ticket_record.assigned_to,
+                       'staff',
+                       'ticket_comment',
+                       'Новий коментар до заявки #' || ticket_record.ticket_number,
+                       'Коментар від клієнта: ' || LEFT(NEW.comment_text, 100),
+                       'ticket',
+                       ticket_record.id,
+                       jsonb_build_object(
+                           'ticket_id', ticket_record.id,
+                           'ticket_number', ticket_record.ticket_number,
+                           'comment_id', NEW.id
+                       )
+                   );
+               ELSE
+                   PERFORM notifications.create_group_notifications(
+                       'tickets.read',
+                       'ticket_comment',
+                       'Новий коментар до заявки #' || ticket_record.ticket_number,
+                       'Коментар від клієнта: ' || LEFT(NEW.comment_text, 100),
+                       'ticket',
+                       ticket_record.id,
+                       jsonb_build_object(
+                           'ticket_id', ticket_record.id,
+                           'ticket_number', ticket_record.ticket_number,
+                           'comment_id', NEW.id
+                       )
+                   );
+               END IF;
+           -- Якщо коментар від користувача і не внутрішній
+           ELSIF NEW.created_by_type = 'staff' AND NEW.is_internal = false THEN
+               PERFORM notifications.create_notification(
+                   ticket_record.client_id,
+                   'client',
+                   'ticket_comment',
+                   'Новий коментар до заявки #' || ticket_record.ticket_number,
+                   'Відповідь від підтримки: ' || LEFT(NEW.comment_text, 100),
+                   'ticket',
+                   ticket_record.id,
+                   jsonb_build_object(
+                       'ticket_id', ticket_record.id,
+                       'ticket_number', ticket_record.ticket_number,
+                       'comment_id', NEW.id
+                   )
+               );
+           END IF;
+           
+           RETURN NEW;
+       END;
+       $function$;
+
+       CREATE TRIGGER notify_ticket_comment_trigger
+           AFTER INSERT ON tickets.ticket_comments
+           FOR EACH ROW
+           EXECUTE FUNCTION tickets.notify_ticket_comment();
+
+       RAISE NOTICE 'Trigger for ticket comment notifications created';
+   END IF;
+
+   -- Тригер для сповіщень про нові повідомлення в чаті
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_proc 
+       WHERE proname = 'notify_chat_message' 
+       AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'chat')
+   ) THEN
+       CREATE OR REPLACE FUNCTION chat.notify_chat_message()
+       RETURNS TRIGGER 
+       LANGUAGE plpgsql
+       AS $function$
+       DECLARE
+           room_record RECORD;
+           client_record RECORD;
+       BEGIN
+           -- Отримуємо інформацію про кімнату
+           SELECT cr.*, c.name as client_name 
+           INTO room_record
+           FROM chat.chat_rooms cr
+           JOIN clients.clients c ON cr.client_id = c.id
+           WHERE cr.id = NEW.room_id;
+           
+           -- Якщо повідомлення від клієнта
+           IF NEW.sender_type = 'client' THEN
+               -- Сповіщення призначеному користувачу або всім з дозволом chat.read
+               IF room_record.assigned_staff_id IS NOT NULL THEN
+                   PERFORM notifications.create_notification(
+                       room_record.assigned_staff_id,
+                       'staff',
+                       'new_chat_message',
+                       'Нове повідомлення в чаті від ' || room_record.client_name,
+                       LEFT(NEW.message_text, 100),
+                       'chat_message',
+                       NEW.id,
+                       jsonb_build_object(
+                           'room_id', room_record.id,
+                           'message_id', NEW.id,
+                           'client_id', room_record.client_id,
+                           'room_type', room_record.room_type
+                       )
+                   );
+               ELSE
+                   PERFORM notifications.create_group_notifications(
+                       'chat.read',
+                       'new_chat_message',
+                       'Нове повідомлення в чаті від ' || room_record.client_name,
+                       LEFT(NEW.message_text, 100),
+                       'chat_message',
+                       NEW.id,
+                       jsonb_build_object(
+                           'room_id', room_record.id,
+                           'message_id', NEW.id,
+                           'client_id', room_record.client_id,
+                           'room_type', room_record.room_type
+                       )
+                   );
+               END IF;
+           -- Якщо повідомлення від співробітника
+           ELSIF NEW.sender_type = 'staff' THEN
+               PERFORM notifications.create_notification(
+                   room_record.client_id,
+                   'client',
+                   'new_chat_message',
+                   'Нове повідомлення від підтримки',
+                   LEFT(NEW.message_text, 100),
+                   'chat_message',
+                   NEW.id,
+                   jsonb_build_object(
+                       'room_id', room_record.id,
+                       'message_id', NEW.id,
+                       'room_type', room_record.room_type
+                   )
+               );
+           END IF;
+           
+           RETURN NEW;
+       END;
+       $function$;
+
+       CREATE TRIGGER notify_chat_message_trigger
+           AFTER INSERT ON chat.chat_messages
+           FOR EACH ROW
+           EXECUTE FUNCTION chat.notify_chat_message();
+
+       RAISE NOTICE 'Trigger for chat message notifications created';
+   END IF;
+
+   -- Тригер для сповіщень про призначення чату
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_proc 
+       WHERE proname = 'notify_chat_assignment' 
+       AND pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'chat')
+   ) THEN
+       CREATE OR REPLACE FUNCTION chat.notify_chat_assignment()
+       RETURNS TRIGGER 
+       LANGUAGE plpgsql
+       AS $function$
+       DECLARE
+           client_record RECORD;
+       BEGIN
+           -- Якщо чат призначили користувачу
+           IF OLD.assigned_staff_id IS DISTINCT FROM NEW.assigned_staff_id AND NEW.assigned_staff_id IS NOT NULL THEN
+               -- Отримуємо інформацію про клієнта
+               SELECT name INTO client_record FROM clients.clients WHERE id = NEW.client_id;
+               
+               PERFORM notifications.create_notification(
+                   NEW.assigned_staff_id,
+                   'staff',
+                   'chat_assigned',
+                   'Вам призначено чат з клієнтом ' || client_record.name,
+                   'Тип чату: ' || NEW.room_type,
+                   'chat_room',
+                   NEW.id,
+                   jsonb_build_object(
+                       'room_id', NEW.id,
+                       'client_id', NEW.client_id,
+                       'room_type', NEW.room_type
+                   )
+               );
+           END IF;
+           
+           RETURN NEW;
+       END;
+       $function$;
+
+       CREATE TRIGGER notify_chat_assignment_trigger
+           AFTER UPDATE ON chat.chat_rooms
+           FOR EACH ROW
+           EXECUTE FUNCTION chat.notify_chat_assignment();
+
+       RAISE NOTICE 'Trigger for chat assignment notifications created';
+   END IF;
+   
+   -- Notifications schema triggers
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_notifications_timestamp'
+   ) THEN
+       CREATE TRIGGER update_notifications_timestamp
+           BEFORE UPDATE ON notifications.notifications
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_user_notification_settings_timestamp'
+   ) THEN
+       CREATE TRIGGER update_user_notification_settings_timestamp
+           BEFORE UPDATE ON notifications.user_notification_settings
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   -- Chat schema triggers for new fields
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_chat_rooms_timestamp'
+   ) THEN
+       CREATE TRIGGER update_chat_rooms_timestamp
+           BEFORE UPDATE ON chat.chat_rooms
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   -- Audit triggers for notifications schema
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_notifications_changes'
+   ) THEN
+       CREATE TRIGGER audit_notifications_changes
+           AFTER INSERT OR UPDATE OR DELETE ON notifications.notifications
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_user_notification_settings_changes'
+   ) THEN
+       CREATE TRIGGER audit_user_notification_settings_changes
+           AFTER INSERT OR UPDATE OR DELETE ON notifications.user_notification_settings
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
 END;
 
 $$;

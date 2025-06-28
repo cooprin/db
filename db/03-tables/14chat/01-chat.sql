@@ -119,4 +119,48 @@ BEGIN
         COMMENT ON TABLE chat.external_integrations IS 'Configuration for external chat platforms';
         RAISE NOTICE 'External integrations table created';
     END IF;
+
+    -- Оновлення таблиці chat_rooms для додаткової функціональності
+    DO $chat_update$
+    BEGIN
+        -- Додаємо нові колонки до chat_rooms якщо їх немає
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'chat' AND table_name = 'chat_rooms' AND column_name = 'room_status'
+        ) THEN
+            ALTER TABLE chat.chat_rooms 
+            ADD COLUMN room_status VARCHAR(20) DEFAULT 'active',
+            ADD COLUMN closed_at TIMESTAMP WITH TIME ZONE,
+            ADD COLUMN closed_by UUID;
+            
+            -- Додаємо constraint для статусу кімнати
+            ALTER TABLE chat.chat_rooms 
+            ADD CONSTRAINT chk_room_status 
+            CHECK (room_status IN ('active', 'closed', 'archived'));
+            
+            -- Додаємо foreign key для closed_by
+            ALTER TABLE chat.chat_rooms 
+            ADD CONSTRAINT fk_chat_rooms_closed_by 
+            FOREIGN KEY (closed_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+            
+            RAISE NOTICE 'Chat rooms table updated with status fields';
+        END IF;
+
+        -- Додаємо нові колонки до chat_messages якщо їх немає
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'chat' AND table_name = 'chat_messages' AND column_name = 'message_status'
+        ) THEN
+            ALTER TABLE chat.chat_messages 
+            ADD COLUMN message_status VARCHAR(20) DEFAULT 'sent',
+            ADD COLUMN delivered_at TIMESTAMP WITH TIME ZONE;
+            
+            -- Додаємо constraint для статусу повідомлення
+            ALTER TABLE chat.chat_messages 
+            ADD CONSTRAINT chk_message_status 
+            CHECK (message_status IN ('sent', 'delivered', 'read', 'failed'));
+            
+            RAISE NOTICE 'Chat messages table updated with status fields';
+        END IF;
+    END $chat_update$;
 END $$;

@@ -973,4 +973,95 @@ COMMENT ON VIEW wialon_sync.view_sync_discrepancies_full IS 'Detailed sync discr
    ORDER BY cm.created_at DESC;
 
    COMMENT ON VIEW chat.view_recent_messages IS 'Recent chat messages from last 30 days with sender details';
+
+   -- Представлення для сповіщень з деталями відправника
+   DROP VIEW IF EXISTS notifications.view_notifications_with_details;
+   CREATE VIEW notifications.view_notifications_with_details AS
+   SELECT 
+       n.id,
+       n.recipient_id,
+       n.recipient_type,
+       n.notification_type,
+       n.title,
+       n.message,
+       n.entity_type,
+       n.entity_id,
+       n.data,
+       n.is_read,
+       n.read_at,
+       n.created_at,
+       n.expires_at,
+       -- Деталі отримувача (користувач)
+       CASE 
+           WHEN n.recipient_type = 'staff' THEN u.first_name || ' ' || u.last_name
+           WHEN n.recipient_type = 'client' THEN c.name
+       END as recipient_name,
+       CASE 
+           WHEN n.recipient_type = 'staff' THEN u.email
+           WHEN n.recipient_type = 'client' THEN c.email
+       END as recipient_email,
+       -- Деталі пов'язаної сутності
+       CASE 
+           WHEN n.entity_type = 'ticket' THEN t.ticket_number
+           WHEN n.entity_type = 'chat_room' THEN 'Chat #' || cr.id
+       END as entity_display_name,
+       -- Додаткові деталі
+       t.priority as ticket_priority,
+       t.status as ticket_status,
+       cr.room_type as chat_room_type
+   FROM notifications.notifications n
+   LEFT JOIN auth.users u ON (n.recipient_type = 'staff' AND n.recipient_id = u.id)
+   LEFT JOIN clients.clients c ON (n.recipient_type = 'client' AND n.recipient_id = c.id)
+   LEFT JOIN tickets.tickets t ON (n.entity_type = 'ticket' AND n.entity_id = t.id)
+   LEFT JOIN chat.chat_rooms cr ON (n.entity_type = 'chat_room' AND n.entity_id = cr.id)
+   ORDER BY n.created_at DESC;
+
+   COMMENT ON VIEW notifications.view_notifications_with_details IS 'Detailed notifications with recipient and entity information';
+
+   -- Представлення для непрочитаних сповіщень
+   DROP VIEW IF EXISTS notifications.view_unread_notifications;
+   CREATE VIEW notifications.view_unread_notifications AS
+   SELECT 
+       recipient_id,
+       recipient_type,
+       COUNT(*) as unread_count,
+       COUNT(*) FILTER (WHERE notification_type = 'new_ticket') as new_tickets_count,
+       COUNT(*) FILTER (WHERE notification_type = 'ticket_comment') as ticket_comments_count,
+       COUNT(*) FILTER (WHERE notification_type = 'new_chat_message') as chat_messages_count,
+       COUNT(*) FILTER (WHERE notification_type = 'ticket_assigned') as assigned_tickets_count,
+       COUNT(*) FILTER (WHERE notification_type = 'chat_assigned') as assigned_chats_count,
+       MAX(created_at) as latest_notification_at
+   FROM notifications.notifications
+   WHERE is_read = false
+   AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+   GROUP BY recipient_id, recipient_type;
+
+   COMMENT ON VIEW notifications.view_unread_notifications IS 'Summary of unread notifications by recipient';
+
+   -- Представлення для налаштувань сповіщень користувачів
+   DROP VIEW IF EXISTS notifications.view_user_settings_full;
+   CREATE VIEW notifications.view_user_settings_full AS
+   SELECT 
+       uns.id,
+       uns.user_id,
+       uns.user_type,
+       uns.notification_type,
+       uns.enabled,
+       uns.delivery_method,
+       uns.created_at,
+       uns.updated_at,
+       CASE 
+           WHEN uns.user_type = 'staff' THEN u.first_name || ' ' || u.last_name
+           WHEN uns.user_type = 'client' THEN c.name
+       END as user_name,
+       CASE 
+           WHEN uns.user_type = 'staff' THEN u.email
+           WHEN uns.user_type = 'client' THEN c.email
+       END as user_email
+   FROM notifications.user_notification_settings uns
+   LEFT JOIN auth.users u ON (uns.user_type = 'staff' AND uns.user_id = u.id)
+   LEFT JOIN clients.clients c ON (uns.user_type = 'client' AND uns.user_id = c.id)
+   ORDER BY user_name, uns.notification_type;
+
+   COMMENT ON VIEW notifications.view_user_settings_full IS 'User notification settings with user details';
 END $$;
