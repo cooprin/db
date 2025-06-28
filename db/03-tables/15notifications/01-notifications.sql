@@ -107,45 +107,67 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_proc WHERE proname = 'create_notification'
     ) THEN
-        CREATE OR REPLACE FUNCTION notifications.create_notification(
-            p_recipient_id UUID,
-            p_recipient_type VARCHAR(20),
-            p_notification_type VARCHAR(50),
-            p_title VARCHAR(255),
-            p_message TEXT DEFAULT NULL,
-            p_entity_type VARCHAR(50) DEFAULT NULL,
-            p_entity_id UUID DEFAULT NULL,
-            p_data JSONB DEFAULT '{}'
-        )
-        RETURNS UUID
-        LANGUAGE plpgsql
-        AS $func$
-        DECLARE
-            notification_id UUID;
-        BEGIN
-            -- Перевіряємо чи користувач увімкнув цей тип сповіщень
-            IF EXISTS (
-                SELECT 1 FROM notifications.user_notification_settings
-                WHERE user_id = p_recipient_id 
-                AND user_type = p_recipient_type 
-                AND notification_type = p_notification_type
-                AND enabled = false
-            ) THEN
-                RETURN NULL;
-            END IF;
+    CREATE OR REPLACE FUNCTION notifications.create_notification(
+        p_recipient_id UUID,
+        p_recipient_type VARCHAR(20),
+        p_notification_type VARCHAR(50),
+        p_title VARCHAR(255),
+        p_message TEXT DEFAULT NULL,
+        p_entity_type VARCHAR(50) DEFAULT NULL,
+        p_entity_id UUID DEFAULT NULL,
+        p_data JSONB DEFAULT '{}'
+    )
+    RETURNS UUID
+    LANGUAGE plpgsql
+    AS $func$
+    DECLARE
+        notification_id UUID;
+        unread_count INTEGER;
+    BEGIN
+        -- Перевіряємо чи користувач увімкнув цей тип сповіщень
+        IF EXISTS (
+            SELECT 1 FROM notifications.user_notification_settings
+            WHERE user_id = p_recipient_id 
+            AND user_type = p_recipient_type 
+            AND notification_type = p_notification_type
+            AND enabled = false
+        ) THEN
+            RETURN NULL;
+        END IF;
 
-            -- Створюємо сповіщення
-            INSERT INTO notifications.notifications (
-                recipient_id, recipient_type, notification_type, 
-                title, message, entity_type, entity_id, data
-            ) VALUES (
-                p_recipient_id, p_recipient_type, p_notification_type,
-                p_title, p_message, p_entity_type, p_entity_id, p_data
-            ) RETURNING id INTO notification_id;
+        -- Створюємо сповіщення
+        INSERT INTO notifications.notifications (
+            recipient_id, recipient_type, notification_type, 
+            title, message, entity_type, entity_id, data
+        ) VALUES (
+            p_recipient_id, p_recipient_type, p_notification_type,
+            p_title, p_message, p_entity_type, p_entity_id, p_data
+        ) RETURNING id INTO notification_id;
 
-            RETURN notification_id;
-        END;
-        $func$;
+        -- Отримуємо загальну кількість непрочитаних
+        SELECT COUNT(*) INTO unread_count
+        FROM notifications.notifications 
+        WHERE recipient_id = p_recipient_id 
+        AND recipient_type = p_recipient_type 
+        AND is_read = false;
+
+        -- Відправляємо Socket.io сповіщення через Node.js функцію
+        PERFORM pg_notify('new_notification', json_build_object(
+            'notification_id', notification_id,
+            'recipient_id', p_recipient_id,
+            'recipient_type', p_recipient_type,
+            'notification_type', p_notification_type,
+            'title', p_title,
+            'message', p_message,
+            'entity_type', p_entity_type,
+            'entity_id', p_entity_id,
+            'data', p_data,
+            'unread_count', unread_count
+        )::text);
+
+        RETURN notification_id;
+    END;
+    $func$;
 
         RAISE NOTICE 'Function create_notification created';
     END IF;
