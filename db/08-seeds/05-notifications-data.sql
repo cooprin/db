@@ -10,20 +10,20 @@ DECLARE
         'new_chat_message', 'chat_assigned', 'chat_closed',
         'new_invoice', 'payment_received'
     ];
-    notification_type TEXT;
+    notif_type TEXT; -- Перейменована змінна
 BEGIN
     -- Для всіх існуючих користувачів (staff)
     FOR user_record IN 
         SELECT id FROM auth.users WHERE is_active = true
     LOOP
-        FOREACH notification_type IN ARRAY notification_types
+        FOREACH notif_type IN ARRAY notification_types
         LOOP
             INSERT INTO notifications.user_notification_settings (
                 user_id, user_type, notification_type, enabled, delivery_method
             ) VALUES (
                 user_record.id, 
                 'staff', 
-                notification_type, 
+                notif_type, 
                 true, 
                 '{"web": true, "email": false}'
             ) ON CONFLICT (user_id, user_type, notification_type) DO NOTHING;
