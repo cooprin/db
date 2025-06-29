@@ -26,6 +26,7 @@ BEGIN
             is_read BOOLEAN DEFAULT false,
             read_at TIMESTAMP WITH TIME ZONE,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             expires_at TIMESTAMP WITH TIME ZONE,
             
             CONSTRAINT chk_recipient_type CHECK (recipient_type IN ('staff', 'client')),
