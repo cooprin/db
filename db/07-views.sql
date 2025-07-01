@@ -981,7 +981,7 @@ COMMENT ON VIEW wialon_sync.view_sync_discrepancies_full IS 'Detailed sync discr
        n.id,
        n.recipient_id,
        n.recipient_type,
-       n.notification_type as type
+       n.notification_type as type,
        n.notification_type, 
        n.title,
        n.message,
