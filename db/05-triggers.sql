@@ -1574,7 +1574,7 @@ BEGIN
            FOR EACH ROW
            EXECUTE FUNCTION audit.log_table_change();
    END IF;
-END;
+
 -- Reports schema triggers
    IF NOT EXISTS (
        SELECT 1 FROM pg_trigger 
