@@ -1627,4 +1627,4 @@ END;
            EXECUTE FUNCTION audit.log_table_change();
    END IF;
 
-$$;
+END $$;
