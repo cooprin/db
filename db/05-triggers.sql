@@ -1575,5 +1575,56 @@ BEGIN
            EXECUTE FUNCTION audit.log_table_change();
    END IF;
 END;
+-- Reports schema triggers
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_report_definitions_timestamp'
+   ) THEN
+       CREATE TRIGGER update_report_definitions_timestamp
+           BEFORE UPDATE ON reports.report_definitions
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_report_parameters_timestamp'
+   ) THEN
+       CREATE TRIGGER update_report_parameters_timestamp
+           BEFORE UPDATE ON reports.report_parameters
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'update_page_report_assignments_timestamp'
+   ) THEN
+       CREATE TRIGGER update_page_report_assignments_timestamp
+           BEFORE UPDATE ON reports.page_report_assignments
+           FOR EACH ROW
+           EXECUTE FUNCTION core.update_timestamp();
+   END IF;
+
+   -- Audit triggers for Reports schema
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_report_definitions_changes'
+   ) THEN
+       CREATE TRIGGER audit_report_definitions_changes
+           AFTER INSERT OR UPDATE OR DELETE ON reports.report_definitions
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_trigger 
+       WHERE tgname = 'audit_page_report_assignments_changes'
+   ) THEN
+       CREATE TRIGGER audit_page_report_assignments_changes
+           AFTER INSERT OR UPDATE OR DELETE ON reports.page_report_assignments
+           FOR EACH ROW
+           EXECUTE FUNCTION audit.log_table_change();
+   END IF;
 
 $$;

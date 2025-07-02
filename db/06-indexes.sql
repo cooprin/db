@@ -713,6 +713,46 @@ END IF;
         CREATE INDEX idx_chat_messages_delivered ON chat.chat_messages(delivered_at);
     END IF;
 
+    -- Reports schema indexes
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_indexes 
+       WHERE schemaname = 'reports' 
+       AND tablename = 'report_definitions' 
+       AND indexname = 'idx_report_definitions_active_code'
+   ) THEN
+       CREATE INDEX idx_report_definitions_active_code ON reports.report_definitions(is_active, code);
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_indexes 
+       WHERE schemaname = 'reports' 
+       AND tablename = 'page_report_assignments' 
+       AND indexname = 'idx_page_assignments_page_visible_order'
+   ) THEN
+       CREATE INDEX idx_page_assignments_page_visible_order 
+       ON reports.page_report_assignments(page_identifier, is_visible, display_order);
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_indexes 
+       WHERE schemaname = 'reports' 
+       AND tablename = 'report_execution_history' 
+       AND indexname = 'idx_execution_history_report_date'
+   ) THEN
+       CREATE INDEX idx_execution_history_report_date 
+       ON reports.report_execution_history(report_id, executed_at DESC);
+   END IF;
+
+   IF NOT EXISTS (
+       SELECT 1 FROM pg_indexes 
+       WHERE schemaname = 'reports' 
+       AND tablename = 'report_cache' 
+       AND indexname = 'idx_report_cache_active'
+   ) THEN
+       CREATE INDEX idx_report_cache_active 
+       ON reports.report_cache(report_id, expires_at) WHERE expires_at > CURRENT_TIMESTAMP;
+   END IF;
+
 
     -- Grant privileges
     -- Auth schema
@@ -785,5 +825,10 @@ END IF;
     GRANT USAGE ON SCHEMA notifications TO current_user;
     GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA notifications TO current_user;
     GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA notifications TO current_user;
+
+    -- Grant privileges for reports schema
+   GRANT USAGE ON SCHEMA reports TO current_user;
+   GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA reports TO current_user;
+   GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA reports TO current_user;
 
 END $$;

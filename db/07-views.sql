@@ -1065,4 +1065,83 @@ COMMENT ON VIEW wialon_sync.view_sync_discrepancies_full IS 'Detailed sync discr
    ORDER BY user_name, uns.notification_type;
 
    COMMENT ON VIEW notifications.view_user_settings_full IS 'User notification settings with user details';
+
+   -- Reports schema views
+   DROP VIEW IF EXISTS reports.view_reports_with_assignments;
+   CREATE VIEW reports.view_reports_with_assignments AS
+   SELECT 
+       rd.id,
+       rd.name,
+       rd.code,
+       rd.description,
+       rd.output_format,
+       rd.is_active,
+       rd.execution_timeout,
+       rd.cache_duration,
+       u.email as created_by_email,
+       u.first_name || ' ' || u.last_name as created_by_name,
+       COUNT(DISTINCT pra.id) as pages_assigned,
+       array_agg(DISTINCT pra.page_identifier) FILTER (WHERE pra.page_identifier IS NOT NULL) as assigned_pages,
+       COUNT(DISTINCT rp.id) as parameters_count,
+       COUNT(DISTINCT reh.id) as execution_count,
+       MAX(reh.executed_at) as last_execution,
+       rd.created_at,
+       rd.updated_at
+   FROM reports.report_definitions rd
+   LEFT JOIN auth.users u ON rd.created_by = u.id
+   LEFT JOIN reports.page_report_assignments pra ON rd.id = pra.report_id AND pra.is_visible = true
+   LEFT JOIN reports.report_parameters rp ON rd.id = rp.report_id
+   LEFT JOIN reports.report_execution_history reh ON rd.id = reh.report_id
+   GROUP BY rd.id, u.email, u.first_name, u.last_name;
+
+   COMMENT ON VIEW reports.view_reports_with_assignments IS 'Reports with assignment and usage statistics';
+
+   -- Page reports view
+   DROP VIEW IF EXISTS reports.view_page_reports;
+   CREATE VIEW reports.view_page_reports AS
+   SELECT 
+       pra.page_identifier,
+       pra.page_title,
+       rd.id as report_id,
+       rd.name as report_name,
+       rd.code as report_code,
+       rd.description,
+       rd.output_format,
+       pra.display_order,
+       pra.auto_execute,
+       COUNT(rp.id) as parameters_count,
+       rd.cache_duration,
+       rd.execution_timeout
+   FROM reports.page_report_assignments pra
+   JOIN reports.report_definitions rd ON pra.report_id = rd.id
+   LEFT JOIN reports.report_parameters rp ON rd.id = rp.report_id
+   WHERE pra.is_visible = true AND rd.is_active = true
+   GROUP BY pra.id, rd.id
+   ORDER BY pra.page_identifier, pra.display_order;
+
+   COMMENT ON VIEW reports.view_page_reports IS 'Reports assigned to pages with configuration';
+
+   -- Report execution statistics view
+   DROP VIEW IF EXISTS reports.view_report_statistics;
+   CREATE VIEW reports.view_report_statistics AS
+   SELECT 
+       rd.id as report_id,
+       rd.name as report_name,
+       rd.code as report_code,
+       COUNT(reh.id) as total_executions,
+       COUNT(CASE WHEN reh.status = 'success' THEN 1 END) as successful_executions,
+       COUNT(CASE WHEN reh.status = 'error' THEN 1 END) as failed_executions,
+       AVG(reh.execution_time) as avg_execution_time,
+       MAX(reh.execution_time) as max_execution_time,
+       AVG(reh.rows_returned) as avg_rows_returned,
+       COUNT(CASE WHEN reh.cache_hit = true THEN 1 END) as cache_hits,
+       MAX(reh.executed_at) as last_execution,
+       COUNT(DISTINCT reh.executed_by) as unique_users
+   FROM reports.report_definitions rd
+   LEFT JOIN reports.report_execution_history reh ON rd.id = reh.report_id
+   WHERE rd.is_active = true
+   GROUP BY rd.id
+   ORDER BY total_executions DESC;
+
+   COMMENT ON VIEW reports.view_report_statistics IS 'Report execution statistics and performance metrics';
 END $$;

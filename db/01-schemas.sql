@@ -110,6 +110,13 @@ BEGIN
         CREATE SCHEMA chat;
         RAISE NOTICE 'Chat schema created';
     END IF;
+        -- Create reports schema
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.schemata WHERE schema_name = 'reports'
+    ) THEN
+        CREATE SCHEMA reports;
+        RAISE NOTICE 'Reports schema created';
+    END IF;
 
     -- Grant usage to public
     GRANT USAGE ON SCHEMA auth TO PUBLIC;
@@ -126,4 +133,5 @@ BEGIN
     GRANT USAGE ON SCHEMA customer_portal TO PUBLIC;
     GRANT USAGE ON SCHEMA tickets TO PUBLIC;
     GRANT USAGE ON SCHEMA chat TO PUBLIC;
+    GRANT USAGE ON SCHEMA reports TO PUBLIC;
 END $$;

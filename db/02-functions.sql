@@ -506,5 +506,378 @@ BEGIN
 
         RAISE NOTICE 'Cleanup stale sessions function created';
     END IF;
+    -- Reports functions
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE proname = 'check_report_permission'
+    ) THEN
+        CREATE OR REPLACE FUNCTION reports.check_report_permission(
+            p_report_id UUID,
+            p_user_id UUID DEFAULT NULL,
+            p_user_type VARCHAR(20) DEFAULT 'staff',
+            p_client_id UUID DEFAULT NULL,
+            p_permission_type VARCHAR(50) DEFAULT 'execute'
+        )
+        RETURNS BOOLEAN
+        LANGUAGE plpgsql
+        AS $func$
+        DECLARE
+            has_permission BOOLEAN := false;
+            user_roles UUID[];
+        BEGIN
+            -- Перевіряємо чи звіт активний
+            IF NOT EXISTS (
+                SELECT 1 FROM reports.report_definitions 
+                WHERE id = p_report_id AND is_active = true
+            ) THEN
+                RETURN false;
+            END IF;
+            
+            -- Перевіряємо прямі дозволи для користувача
+            IF p_user_type = 'staff' AND p_user_id IS NOT NULL THEN
+                SELECT EXISTS (
+                    SELECT 1 FROM reports.report_permissions
+                    WHERE report_id = p_report_id 
+                    AND user_id = p_user_id 
+                    AND permission_type = p_permission_type
+                ) INTO has_permission;
+                
+                IF has_permission THEN
+                    RETURN true;
+                END IF;
+                
+                -- Перевіряємо дозволи через ролі
+                SELECT array_agg(role_id) INTO user_roles
+                FROM auth.user_roles 
+                WHERE user_id = p_user_id;
+                
+                IF user_roles IS NOT NULL THEN
+                    SELECT EXISTS (
+                        SELECT 1 FROM reports.report_permissions
+                        WHERE report_id = p_report_id 
+                        AND role_id = ANY(user_roles)
+                        AND permission_type = p_permission_type
+                    ) INTO has_permission;
+                    
+                    IF has_permission THEN
+                        RETURN true;
+                    END IF;
+                END IF;
+                
+                -- Перевіряємо системні дозволи
+                SELECT EXISTS (
+                    SELECT 1 FROM auth.view_user_permissions
+                    WHERE user_id = p_user_id 
+                    AND permission_code = 'reports.' || p_permission_type
+                ) INTO has_permission;
+                
+            ELSIF p_user_type = 'client' AND p_client_id IS NOT NULL THEN
+                -- Перевіряємо дозволи для клієнта
+                SELECT EXISTS (
+                    SELECT 1 FROM reports.report_permissions
+                    WHERE report_id = p_report_id 
+                    AND client_id = p_client_id 
+                    AND permission_type = p_permission_type
+                ) INTO has_permission;
+            END IF;
+            
+            RETURN has_permission;
+        END;
+        $func$;
+
+        RAISE NOTICE 'Report permission check function created';
+    END IF;
+
+    -- Function to get reports for a specific page
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE proname = 'get_page_reports'
+    ) THEN
+        CREATE OR REPLACE FUNCTION reports.get_page_reports(
+            p_page_identifier VARCHAR(100),
+            p_user_id UUID DEFAULT NULL,
+            p_user_type VARCHAR(20) DEFAULT 'staff',
+            p_client_id UUID DEFAULT NULL
+        )
+        RETURNS TABLE(
+            report_id UUID,
+            report_name VARCHAR(255),
+            report_code VARCHAR(100),
+            description TEXT,
+            output_format VARCHAR(50),
+            auto_execute BOOLEAN,
+            display_order INTEGER,
+            parameters_count BIGINT,
+            has_execute_permission BOOLEAN
+        )
+        LANGUAGE plpgsql
+        AS $func$
+        BEGIN
+            RETURN QUERY
+            SELECT 
+                rd.id,
+                rd.name,
+                rd.code,
+                rd.description,
+                rd.output_format,
+                pra.auto_execute,
+                pra.display_order,
+                COUNT(rp.id) as parameters_count,
+                reports.check_report_permission(rd.id, p_user_id, p_user_type, p_client_id, 'execute') as has_execute_permission
+            FROM reports.report_definitions rd
+            JOIN reports.page_report_assignments pra ON rd.id = pra.report_id
+            LEFT JOIN reports.report_parameters rp ON rd.id = rp.report_id
+            WHERE rd.is_active = true
+            AND pra.is_visible = true
+            AND pra.page_identifier = p_page_identifier
+            GROUP BY rd.id, pra.auto_execute, pra.display_order
+            ORDER BY pra.display_order, rd.name;
+        END;
+        $func$;
+
+        RAISE NOTICE 'Get page reports function created';
+    END IF;
+
+    -- Function to execute report with parameters
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE proname = 'execute_report'
+    ) THEN
+        CREATE OR REPLACE FUNCTION reports.execute_report(
+            p_report_id UUID,
+            p_parameters JSONB DEFAULT '{}',
+            p_user_id UUID DEFAULT NULL,
+            p_user_type VARCHAR(20) DEFAULT 'staff',
+            p_client_id UUID DEFAULT NULL,
+            p_page_identifier VARCHAR(100) DEFAULT NULL,
+            p_ip_address INET DEFAULT NULL,
+            p_user_agent TEXT DEFAULT NULL
+        )
+        RETURNS TABLE(
+            success BOOLEAN,
+            execution_id UUID,
+            data JSONB,
+            error_message TEXT,
+            execution_time DECIMAL,
+            rows_count INTEGER,
+            from_cache BOOLEAN
+        )
+        LANGUAGE plpgsql
+        AS $func$
+        DECLARE
+            report_record RECORD;
+            sql_query TEXT;
+            result_data JSONB;
+            param_key TEXT;
+            param_value TEXT;
+            start_time TIMESTAMP;
+            end_time TIMESTAMP;
+            exec_time DECIMAL;
+            row_count INTEGER := 0;
+            cache_key VARCHAR(64);
+            cached_result RECORD;
+            execution_id UUID;
+            error_msg TEXT := NULL;
+            is_success BOOLEAN := true;
+            is_from_cache BOOLEAN := false;
+        BEGIN
+            start_time := clock_timestamp();
+            execution_id := gen_random_uuid();
+            
+            -- Перевіряємо дозволи
+            IF NOT reports.check_report_permission(p_report_id, p_user_id, p_user_type, p_client_id, 'execute') THEN
+                success := false;
+                error_message := 'Access denied';
+                execution_time := 0;
+                rows_count := 0;
+                from_cache := false;
+                RETURN NEXT;
+                RETURN;
+            END IF;
+            
+            -- Отримуємо дані звіту
+            SELECT * INTO report_record
+            FROM reports.report_definitions
+            WHERE id = p_report_id AND is_active = true;
+            
+            IF NOT FOUND THEN
+                success := false;
+                error_message := 'Report not found or inactive';
+                execution_time := 0;
+                rows_count := 0;
+                from_cache := false;
+                RETURN NEXT;
+                RETURN;
+            END IF;
+            
+            -- Генеруємо ключ кешу
+            cache_key := encode(sha256((p_report_id::text || p_parameters::text)::bytea), 'hex');
+            
+            -- Перевіряємо кеш якщо увімкнено
+            IF report_record.cache_duration > 0 THEN
+                SELECT * INTO cached_result
+                FROM reports.report_cache
+                WHERE report_id = p_report_id 
+                AND parameters_hash = cache_key
+                AND expires_at > CURRENT_TIMESTAMP;
+                
+                IF FOUND THEN
+                    end_time := clock_timestamp();
+                    exec_time := EXTRACT(EPOCH FROM (end_time - start_time));
+                    
+                    -- Логуємо виконання з кешу
+                    INSERT INTO reports.report_execution_history (
+                        id, report_id, executed_by, executed_by_type, page_identifier,
+                        parameters, execution_time, rows_returned, status, cache_hit,
+                        ip_address, user_agent
+                    ) VALUES (
+                        execution_id, p_report_id, p_user_id, p_user_type, p_page_identifier,
+                        p_parameters, exec_time, cached_result.rows_count, 'success', true,
+                        p_ip_address, p_user_agent
+                    );
+                    
+                    success := true;
+                    data := cached_result.cache_data;
+                    error_message := NULL;
+                    execution_time := exec_time;
+                    rows_count := cached_result.rows_count;
+                    from_cache := true;
+                    RETURN NEXT;
+                    RETURN;
+                END IF;
+            END IF;
+            
+            -- Підготовляємо SQL запит з параметрами
+            sql_query := report_record.sql_query;
+            
+            -- Замінюємо параметри в запиті (простий варіант)
+            FOR param_key, param_value IN SELECT * FROM jsonb_each_text(p_parameters)
+            LOOP
+                sql_query := replace(sql_query, ':' || param_key, quote_literal(param_value));
+            END LOOP;
+            
+            BEGIN
+                -- Виконуємо запит та збираємо результат в JSON
+                EXECUTE format('
+                    SELECT jsonb_agg(row_to_json(t)) as result, count(*) as cnt
+                    FROM (%s) t
+                ', sql_query) INTO result_data, row_count;
+                
+                end_time := clock_timestamp();
+                exec_time := EXTRACT(EPOCH FROM (end_time - start_time));
+                
+                -- Зберігаємо в кеш якщо потрібно
+                IF report_record.cache_duration > 0 THEN
+                    INSERT INTO reports.report_cache (
+                        report_id, parameters_hash, cache_data, execution_time,
+                        rows_count, expires_at
+                    ) VALUES (
+                        p_report_id, cache_key, result_data, exec_time,
+                        row_count, CURRENT_TIMESTAMP + (report_record.cache_duration || ' minutes')::INTERVAL
+                    )
+                    ON CONFLICT (report_id, parameters_hash) 
+                    DO UPDATE SET
+                        cache_data = EXCLUDED.cache_data,
+                        execution_time = EXCLUDED.execution_time,
+                        rows_count = EXCLUDED.rows_count,
+                        expires_at = EXCLUDED.expires_at,
+                        created_at = CURRENT_TIMESTAMP;
+                END IF;
+                
+            EXCEPTION WHEN OTHERS THEN
+                end_time := clock_timestamp();
+                exec_time := EXTRACT(EPOCH FROM (end_time - start_time));
+                error_msg := SQLERRM;
+                is_success := false;
+                result_data := NULL;
+                row_count := 0;
+            END;
+            
+            -- Логуємо виконання
+            INSERT INTO reports.report_execution_history (
+                id, report_id, executed_by, executed_by_type, page_identifier,
+                parameters, execution_time, rows_returned, status, error_message,
+                cache_hit, ip_address, user_agent
+            ) VALUES (
+                execution_id, p_report_id, p_user_id, p_user_type, p_page_identifier,
+                p_parameters, exec_time, row_count, 
+                CASE WHEN is_success THEN 'success' ELSE 'error' END,
+                error_msg, false, p_ip_address, p_user_agent
+            );
+            
+            success := is_success;
+            data := result_data;
+            error_message := error_msg;
+            execution_time := exec_time;
+            rows_count := row_count;
+            from_cache := is_from_cache;
+            RETURN NEXT;
+            RETURN;
+        END;
+        $func$;
+
+        RAISE NOTICE 'Execute report function created';
+    END IF;
+
+    -- Function to clear expired cache
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE proname = 'clear_expired_cache'
+    ) THEN
+        CREATE OR REPLACE FUNCTION reports.clear_expired_cache()
+        RETURNS INTEGER
+        LANGUAGE plpgsql
+        AS $func$
+        DECLARE
+            deleted_count INTEGER;
+        BEGIN
+            DELETE FROM reports.report_cache 
+            WHERE expires_at <= CURRENT_TIMESTAMP;
+            
+            GET DIAGNOSTICS deleted_count = ROW_COUNT;
+            
+            RETURN deleted_count;
+        END;
+        $func$;
+
+        RAISE NOTICE 'Clear expired cache function created';
+    END IF;
+
+    -- Function to get report parameters schema
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE proname = 'get_report_parameters'
+    ) THEN
+        CREATE OR REPLACE FUNCTION reports.get_report_parameters(
+            p_report_id UUID
+        )
+        RETURNS TABLE(
+            parameter_name VARCHAR(100),
+            parameter_type VARCHAR(50),
+            display_name VARCHAR(255),
+            description TEXT,
+            is_required BOOLEAN,
+            default_value TEXT,
+            validation_rules JSONB,
+            options JSONB,
+            ordering INTEGER
+        )
+        LANGUAGE plpgsql
+        AS $func$
+        BEGIN
+            RETURN QUERY
+            SELECT 
+                rp.parameter_name,
+                rp.parameter_type,
+                rp.display_name,
+                rp.description,
+                rp.is_required,
+                rp.default_value,
+                rp.validation_rules,
+                rp.options,
+                rp.ordering
+            FROM reports.report_parameters rp
+            WHERE rp.report_id = p_report_id
+            ORDER BY rp.ordering, rp.parameter_name;
+        END;
+        $func$;
+
+        RAISE NOTICE 'Get report parameters function created';
+    END IF;
 
 END $$;

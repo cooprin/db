@@ -100,6 +100,8 @@ BEGIN
         ('Company Profile', 'company_profile', 'module'),
         ('Wialon Objects', 'wialon_objects', 'module'),
         ('Wialon Sync', 'wialon_sync', 'module'),
+        ('Reports', 'reports', 'module'),
+
 
         -- Customer portal resources
         ('Customer Portal', 'customer_portal', 'module'),
@@ -139,7 +141,8 @@ BEGIN
         (r.code = 'warehouses' AND pg.name = 'Warehouse Management') OR
         (r.code IN ('clients', 'services') AND pg.name = 'Client Management') OR
         (r.code IN ('invoices', 'payments', 'tariffs', 'company_profile') AND pg.name = 'Financial Management') OR
-        (r.code IN ('wialon_objects', 'wialon_sync') AND pg.name = 'Wialon Management')
+        (r.code IN ('wialon_objects', 'wialon_sync') AND pg.name = 'Wialon Management') OR 
+        (r.code = 'reports' AND pg.name = 'Resource Management')
     )
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.permissions
