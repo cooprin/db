@@ -743,15 +743,15 @@ END IF;
        ON reports.report_execution_history(report_id, executed_at DESC);
    END IF;
 
-   IF NOT EXISTS (
-       SELECT 1 FROM pg_indexes 
-       WHERE schemaname = 'reports' 
-       AND tablename = 'report_cache' 
-       AND indexname = 'idx_report_cache_active'
-   ) THEN
-       CREATE INDEX idx_report_cache_active 
-       ON reports.report_cache(report_id, expires_at) WHERE expires_at > CURRENT_TIMESTAMP;
-   END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE schemaname = 'reports' 
+        AND tablename = 'report_cache' 
+        AND indexname = 'idx_report_cache_active'
+    ) THEN
+        CREATE INDEX idx_report_cache_active 
+        ON reports.report_cache(report_id, expires_at);
+    END IF;
 
 
     -- Grant privileges
