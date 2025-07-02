@@ -537,7 +537,6 @@ BEGIN
                     SELECT 1 FROM reports.report_permissions
                     WHERE report_id = p_report_id 
                     AND user_id = p_user_id 
-                    AND permission_type = p_permission_type
                 ) INTO has_permission;
                 
                 IF has_permission THEN
@@ -554,7 +553,6 @@ BEGIN
                         SELECT 1 FROM reports.report_permissions
                         WHERE report_id = p_report_id 
                         AND role_id = ANY(user_roles)
-                        AND permission_type = p_permission_type
                     ) INTO has_permission;
                     
                     IF has_permission THEN
@@ -575,7 +573,6 @@ BEGIN
                     SELECT 1 FROM reports.report_permissions
                     WHERE report_id = p_report_id 
                     AND client_id = p_client_id 
-                    AND permission_type = p_permission_type
                 ) INTO has_permission;
             END IF;
             
