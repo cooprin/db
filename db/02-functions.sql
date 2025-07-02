@@ -510,13 +510,12 @@ BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_proc WHERE proname = 'check_report_permission'
     ) THEN
-        CREATE OR REPLACE FUNCTION reports.check_report_permission(
-            p_report_id UUID,
-            p_user_id UUID DEFAULT NULL,
-            p_user_type VARCHAR(20) DEFAULT 'staff',
-            p_client_id UUID DEFAULT NULL,
-            p_permission_type VARCHAR(50) DEFAULT 'execute'
-        )
+    CREATE OR REPLACE FUNCTION reports.check_report_permission(
+        p_report_id UUID,
+        p_user_id UUID DEFAULT NULL,
+        p_user_type VARCHAR(20) DEFAULT 'staff',
+        p_client_id UUID DEFAULT NULL
+    )
         RETURNS BOOLEAN
         LANGUAGE plpgsql
         AS $func$
@@ -567,7 +566,7 @@ BEGIN
                 SELECT EXISTS (
                     SELECT 1 FROM auth.view_user_permissions
                     WHERE user_id = p_user_id 
-                    AND permission_code = 'reports.' || p_permission_type
+                    AND permission_code = 'reports.read'
                 ) INTO has_permission;
                 
             ELSIF p_user_type = 'client' AND p_client_id IS NOT NULL THEN
@@ -621,7 +620,7 @@ BEGIN
                 pra.auto_execute,
                 pra.display_order,
                 COUNT(rp.id) as parameters_count,
-                reports.check_report_permission(rd.id, p_user_id, p_user_type, p_client_id, 'execute') as has_execute_permission
+                reports.check_report_permission(rd.id, p_user_id, p_user_type, p_client_id) as has_execute_permission
             FROM reports.report_definitions rd
             JOIN reports.page_report_assignments pra ON rd.id = pra.report_id
             LEFT JOIN reports.report_parameters rp ON rd.id = rp.report_id
@@ -682,7 +681,7 @@ BEGIN
             execution_id := gen_random_uuid();
             
             -- Перевіряємо дозволи
-            IF NOT reports.check_report_permission(p_report_id, p_user_id, p_user_type, p_client_id, 'execute') THEN
+            IF NOT reports.check_report_permission(p_report_id, p_user_id, p_user_type, p_client_id) THEN
                 success := false;
                 error_message := 'Access denied';
                 execution_time := 0;

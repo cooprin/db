@@ -142,7 +142,8 @@ BEGIN
         (r.code IN ('clients', 'services') AND pg.name = 'Client Management') OR
         (r.code IN ('invoices', 'payments', 'tariffs', 'company_profile') AND pg.name = 'Financial Management') OR
         (r.code IN ('wialon_objects', 'wialon_sync') AND pg.name = 'Wialon Management') OR 
-        (r.code = 'reports' AND pg.name = 'Resource Management')
+        (r.code = 'reports' AND pg.name = 'Resource Management') OR
+        (r.code IN ('chat', 'customer_portal', 'tickets') AND pg.name = 'Client Management')
     )
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.permissions
