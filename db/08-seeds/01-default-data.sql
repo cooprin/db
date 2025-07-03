@@ -281,6 +281,57 @@ BEGIN
         WHERE role_id = r.id AND permission_id = p.id
     );
 
+    -- Додаємо дозволи на звіти для ролей
+-- ADMIN: вже має всі дозволи
+
+-- MANAGER: читання та виконання звітів
+INSERT INTO auth.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM auth.roles r
+CROSS JOIN auth.permissions p
+WHERE r.name = 'manager'
+AND p.code IN ('reports.read')
+AND NOT EXISTS (
+    SELECT 1 FROM auth.role_permissions
+    WHERE role_id = r.id AND permission_id = p.id
+);
+
+-- OPERATOR: тільки читання звітів
+INSERT INTO auth.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM auth.roles r
+CROSS JOIN auth.permissions p
+WHERE r.name = 'operator'
+AND p.code IN ('reports.read')
+AND NOT EXISTS (
+    SELECT 1 FROM auth.role_permissions
+    WHERE role_id = r.id AND permission_id = p.id
+);
+
+-- ACCOUNTANT: повний доступ до звітів
+INSERT INTO auth.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM auth.roles r
+CROSS JOIN auth.permissions p
+WHERE r.name = 'accountant'
+AND p.code LIKE 'reports.%'
+AND NOT EXISTS (
+    SELECT 1 FROM auth.role_permissions
+    WHERE role_id = r.id AND permission_id = p.id
+);
+
+-- VIEWER: тільки читання звітів
+INSERT INTO auth.role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+FROM auth.roles r
+CROSS JOIN auth.permissions p
+WHERE r.name = 'viewer'
+AND p.code IN ('reports.read')
+AND NOT EXISTS (
+    SELECT 1 FROM auth.role_permissions
+    WHERE role_id = r.id AND permission_id = p.id
+);
+
 END $$;
 
 -- Re-enable triggers after data load

@@ -516,69 +516,28 @@ BEGIN
         p_user_type VARCHAR(20) DEFAULT 'staff',
         p_client_id UUID DEFAULT NULL
     )
-        RETURNS BOOLEAN
-        LANGUAGE plpgsql
-        AS $func$
-        DECLARE
-            has_permission BOOLEAN := false;
-            user_roles UUID[];
-        BEGIN
-            -- Перевіряємо чи звіт активний
-            IF NOT EXISTS (
-                SELECT 1 FROM reports.report_definitions 
-                WHERE id = p_report_id AND is_active = true
-            ) THEN
-                RETURN false;
-            END IF;
-            
-            -- Перевіряємо прямі дозволи для користувача
-            IF p_user_type = 'staff' AND p_user_id IS NOT NULL THEN
-                SELECT EXISTS (
-                    SELECT 1 FROM reports.report_permissions
-                    WHERE report_id = p_report_id 
-                    AND user_id = p_user_id 
-                ) INTO has_permission;
-                
-                IF has_permission THEN
-                    RETURN true;
-                END IF;
-                
-                -- Перевіряємо дозволи через ролі
-                SELECT array_agg(role_id) INTO user_roles
-                FROM auth.user_roles 
-                WHERE user_id = p_user_id;
-                
-                IF user_roles IS NOT NULL THEN
-                    SELECT EXISTS (
-                        SELECT 1 FROM reports.report_permissions
-                        WHERE report_id = p_report_id 
-                        AND role_id = ANY(user_roles)
-                    ) INTO has_permission;
-                    
-                    IF has_permission THEN
-                        RETURN true;
-                    END IF;
-                END IF;
-                
-                -- Перевіряємо системні дозволи
-                SELECT EXISTS (
-                    SELECT 1 FROM auth.view_user_permissions
-                    WHERE user_id = p_user_id 
-                    AND permission_code = 'reports.read'
-                ) INTO has_permission;
-                
-            ELSIF p_user_type = 'client' AND p_client_id IS NOT NULL THEN
-                -- Перевіряємо дозволи для клієнта
-                SELECT EXISTS (
-                    SELECT 1 FROM reports.report_permissions
-                    WHERE report_id = p_report_id 
-                    AND client_id = p_client_id 
-                ) INTO has_permission;
-            END IF;
-            
-            RETURN has_permission;
-        END;
-        $func$;
+    RETURNS BOOLEAN
+    LANGUAGE plpgsql
+    AS $func$
+    BEGIN
+        -- Перевіряємо чи звіт активний
+        IF NOT EXISTS (
+            SELECT 1 FROM reports.report_definitions 
+            WHERE id = p_report_id AND is_active = true
+        ) THEN
+            RETURN false;
+        END IF;
+        
+        -- Звіти доступні тільки для персоналу
+        -- Перевірка дозволів відбувається на рівні middleware
+        IF p_user_type = 'staff' AND p_user_id IS NOT NULL THEN
+            RETURN true;
+        END IF;
+        
+        -- Клієнти не мають доступу до звітів
+        RETURN false;
+    END;
+    $func$;
 
         RAISE NOTICE 'Report permission check function created';
     END IF;
@@ -703,8 +662,13 @@ BEGIN
                 RETURN;
             END IF;
             
-            -- Генеруємо ключ кешу
-            cache_key := encode(sha256((p_report_id::text || p_parameters::text)::bytea), 'hex');
+            -- Генеруємо ключ кешу з урахуванням користувача
+            cache_key := encode(sha256((
+                p_report_id::text || 
+                p_parameters::text || 
+                COALESCE(p_user_id::text, '') || 
+                p_user_type
+            )::bytea), 'hex');
             
             -- Перевіряємо кеш якщо увімкнено
             IF report_record.cache_duration > 0 THEN
@@ -729,6 +693,31 @@ BEGIN
                         p_ip_address, p_user_agent
                     );
                     
+                    -- Інтеграція з системою аудиту
+                    BEGIN
+                        PERFORM audit.log_system_event(
+                            'REPORT_EXECUTE',
+                            'REPORT',
+                            p_report_id,
+                            jsonb_build_object(
+                                'report_id', p_report_id,
+                                'user_id', p_user_id,
+                                'user_type', p_user_type,
+                                'page_identifier', p_page_identifier,
+                                'parameters', p_parameters,
+                                'execution_time', exec_time,
+                                'rows_count', row_count,
+                                'status', CASE WHEN is_success THEN 'success' ELSE 'error' END,
+                                'from_cache', is_from_cache,
+                                'ip_address', p_ip_address
+                            ),
+                            p_ip_address
+                        );
+                    EXCEPTION WHEN OTHERS THEN
+                        -- Не блокуємо виконання звіту якщо аудит не працює
+                        NULL;
+                    END;
+                    
                     success := true;
                     data := cached_result.cache_data;
                     error_message := NULL;
@@ -740,14 +729,63 @@ BEGIN
                 END IF;
             END IF;
             
-            -- Підготовляємо SQL запит з параметрами
-            sql_query := report_record.sql_query;
+        -- Підготовляємо SQL запит з параметрами (БЕЗПЕЧНО)
+        sql_query := report_record.sql_query;
+
+        -- Валідуємо та замінюємо параметри безпечно
+        FOR param_key, param_value IN SELECT * FROM jsonb_each_text(p_parameters)
+        LOOP
+            -- Перевіряємо що параметр існує в схемі звіту
+            IF NOT EXISTS (
+                SELECT 1 FROM reports.report_parameters 
+                WHERE report_id = p_report_id AND parameter_name = param_key
+            ) THEN
+                error_msg := 'Invalid parameter: ' || param_key;
+                is_success := false;
+                EXIT;
+            END IF;
             
-            -- Замінюємо параметри в запиті (простий варіант)
-            FOR param_key, param_value IN SELECT * FROM jsonb_each_text(p_parameters)
-            LOOP
-                sql_query := replace(sql_query, ':' || param_key, quote_literal(param_value));
-            END LOOP;
+            -- Безпечна заміна параметрів з перевіркою типу
+            DECLARE
+                param_type VARCHAR(50);
+                safe_value TEXT;
+            BEGIN
+                SELECT parameter_type INTO param_type 
+                FROM reports.report_parameters 
+                WHERE report_id = p_report_id AND parameter_name = param_key;
+                
+                -- Валідуємо та форматуємо значення за типом
+                CASE param_type
+                    WHEN 'number' THEN
+                        safe_value := param_value::NUMERIC::TEXT;
+                    WHEN 'date' THEN
+                        safe_value := quote_literal(param_value::DATE::TEXT);
+                    WHEN 'datetime' THEN
+                        safe_value := quote_literal(param_value::TIMESTAMP::TEXT);
+                    WHEN 'boolean' THEN
+                        safe_value := (param_value::BOOLEAN)::TEXT;
+                    WHEN 'client_id', 'user_id' THEN
+                        safe_value := param_value::UUID::TEXT;
+                    ELSE
+                        safe_value := quote_literal(param_value);
+                END CASE;
+                
+                sql_query := replace(sql_query, ':' || param_key, safe_value);
+            EXCEPTION WHEN OTHERS THEN
+                error_msg := 'Invalid parameter value for ' || param_key || ': ' || param_value;
+                is_success := false;
+                EXIT;
+            END;
+        END LOOP;
+
+        -- Додаткова перевірка SQL на заборонені команди
+        IF is_success AND (
+            sql_query ~* '\b(DROP|DELETE|UPDATE|INSERT|ALTER|CREATE|TRUNCATE|GRANT|REVOKE)\b'
+            OR sql_query ~* '\b(pg_|information_schema\.|pg_catalog\.)\b'
+        ) THEN
+            error_msg := 'SQL query contains forbidden operations';
+            is_success := false;
+        END IF;
             
             BEGIN
                 -- Виконуємо запит та збираємо результат в JSON
@@ -874,6 +912,101 @@ BEGIN
         $func$;
 
         RAISE NOTICE 'Get report parameters function created';
+    END IF;
+
+        -- Function to export report results
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE proname = 'export_report_results'
+    ) THEN
+        CREATE OR REPLACE FUNCTION reports.export_report_results(
+            p_report_id UUID,
+            p_parameters JSONB DEFAULT '{}',
+            p_user_id UUID DEFAULT NULL,
+            p_user_type VARCHAR(20) DEFAULT 'staff',
+            p_format VARCHAR(10) DEFAULT 'csv'
+        )
+        RETURNS TABLE(
+            success BOOLEAN,
+            data TEXT,
+            filename VARCHAR(255),
+            content_type VARCHAR(100),
+            error_message TEXT
+        )
+        LANGUAGE plpgsql
+        AS $func$
+        DECLARE
+            report_data JSONB;
+            csv_data TEXT := '';
+            json_data TEXT := '';
+            row_data JSONB;
+            headers TEXT[];
+            values TEXT[];
+            report_name VARCHAR(255);
+            i INTEGER;
+        BEGIN
+            -- Виконуємо звіт
+            SELECT rd.data, rd.error_message, rdef.name
+            INTO report_data, error_message, report_name
+            FROM reports.execute_report(p_report_id, p_parameters, p_user_id, p_user_type) rd
+            JOIN reports.report_definitions rdef ON rdef.id = p_report_id
+            WHERE rd.success = true;
+            
+            IF report_data IS NULL THEN
+                success := false;
+                error_message := COALESCE(error_message, 'No data returned from report');
+                RETURN NEXT;
+                RETURN;
+            END IF;
+            
+            -- Формуємо дані за форматом
+            IF p_format = 'csv' THEN
+                -- Отримуємо заголовки з першого рядка
+                IF jsonb_array_length(report_data) > 0 THEN
+                    SELECT array_agg(key ORDER BY key) INTO headers
+                    FROM jsonb_object_keys(report_data->0) AS key;
+                    
+                    -- Додаємо заголовки
+                    csv_data := array_to_string(headers, ',') || E'\n';
+                    
+                    -- Додаємо дані
+                    FOR i IN 0..jsonb_array_length(report_data)-1 LOOP
+                        row_data := report_data->i;
+                        
+                        SELECT array_agg(
+                            CASE 
+                                WHEN row_data->>key IS NULL THEN ''
+                                WHEN row_data->>key ~ ',' THEN '"' || replace(row_data->>key, '"', '""') || '"'
+                                ELSE row_data->>key
+                            END
+                            ORDER BY key
+                        ) INTO values
+                        FROM unnest(headers) AS key;
+                        
+                        csv_data := csv_data || array_to_string(values, ',') || E'\n';
+                    END LOOP;
+                END IF;
+                
+                success := true;
+                data := csv_data;
+                filename := replace(report_name, ' ', '_') || '_' || to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD_HH24-MI-SS') || '.csv';
+                content_type := 'text/csv';
+                
+            ELSIF p_format = 'json' THEN
+                success := true;
+                data := report_data::TEXT;
+                filename := replace(report_name, ' ', '_') || '_' || to_char(CURRENT_TIMESTAMP, 'YYYY-MM-DD_HH24-MI-SS') || '.json';
+                content_type := 'application/json';
+                
+            ELSE
+                success := false;
+                error_message := 'Unsupported export format: ' || p_format;
+            END IF;
+            
+            RETURN NEXT;
+        END;
+        $func$;
+
+        RAISE NOTICE 'Export report results function created';
     END IF;
 
 END $$;
