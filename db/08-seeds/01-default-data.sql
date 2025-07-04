@@ -179,17 +179,45 @@ BEGIN
         WHERE role_id = r.id AND permission_id = p.id
     );
 
-    -- MANAGER: client, service, wialon management + reading others
+    -- MANAGER: обмежені права (ВИПРАВЛЕНО)
+    -- Повний доступ до управління клієнтами
     INSERT INTO auth.role_permissions (role_id, permission_id)
     SELECT r.id, p.id
     FROM auth.roles r
     CROSS JOIN auth.permissions p
     JOIN auth.permission_groups pg ON p.group_id = pg.id
     WHERE r.name = 'manager'
-    AND (
-        pg.name IN ('Client Management', 'Wialon Management') OR
-        (pg.name IN ('Product Management', 'Warehouse Management', 'Financial Management') AND p.code LIKE '%.read')
+    AND pg.name = 'Client Management'  -- clients, services, tickets, chat, customer_portal
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Обмежений доступ до Wialon (тільки читання + редагування)
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    WHERE r.name = 'manager'
+    AND p.code IN (
+        'wialon_objects.read',
+        'wialon_objects.update',  -- редагування існуючих об'єктів
+        'wialon_sync.read'        -- перегляд синхронізації
     )
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- Читання інших модулів
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    JOIN auth.permission_groups pg ON p.group_id = pg.id
+    WHERE r.name = 'manager'
+    AND pg.name IN ('Product Management', 'Warehouse Management', 'Financial Management')
+    AND p.code LIKE '%.read'
     AND NOT EXISTS (
         SELECT 1 FROM auth.role_permissions
         WHERE role_id = r.id AND permission_id = p.id
