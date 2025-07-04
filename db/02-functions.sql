@@ -733,8 +733,22 @@ BEGIN
         sql_query := report_record.sql_query;
 
         -- Валідуємо та замінюємо параметри безпечно
+        -- Спочатку замінюємо всі null параметри на порожні рядки для універсальної обробки
+        FOR param_key IN SELECT jsonb_object_keys(p_parameters)
+        LOOP
+            IF p_parameters->param_key = 'null'::jsonb OR p_parameters->param_key IS NULL THEN
+                sql_query := replace(sql_query, ':' || param_key, '''''');
+            END IF;
+        END LOOP;
+
+        -- Тепер обробляємо не-null параметри
         FOR param_key, param_value IN SELECT * FROM jsonb_each_text(p_parameters)
         LOOP
+            -- Пропускаємо вже оброблені null параметри
+            IF param_value IS NULL OR param_value = 'null' THEN
+                CONTINUE;
+            END IF;
+            
             -- Перевіряємо що параметр існує в схемі звіту
             IF NOT EXISTS (
                 SELECT 1 FROM reports.report_parameters 
