@@ -314,6 +314,48 @@ BEGIN
     END;
     $func$;
     END IF;
+    
+    -- Функція для отримання останнього (найсвіжішого) тарифу який діє в заданому місяці
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_proc WHERE proname = 'get_latest_tariff_for_month'
+    ) THEN
+    CREATE OR REPLACE FUNCTION billing.get_latest_tariff_for_month(
+        p_object_id UUID,
+        p_billing_year INTEGER,
+        p_billing_month INTEGER
+    )
+    RETURNS TABLE(
+        tariff_id UUID,
+        tariff_price DECIMAL(10,2),
+        effective_from DATE
+    )
+    LANGUAGE plpgsql
+    AS $func$
+    DECLARE
+        month_start DATE;
+        month_end DATE;
+    BEGIN
+        -- Визначаємо початок і кінець місяця
+        month_start := DATE(p_billing_year || '-' || LPAD(p_billing_month::text, 2, '0') || '-01');
+        month_end := (month_start + INTERVAL '1 month' - INTERVAL '1 day')::DATE;
+        
+        -- Знаходимо останній тариф який почав діяти в цьому місяці або раніше
+        -- але ще діє в цьому місяці
+        RETURN QUERY
+        SELECT 
+            ot.tariff_id,
+            t.price,
+            ot.effective_from
+        FROM billing.object_tariffs ot
+        JOIN billing.tariffs t ON ot.tariff_id = t.id
+        WHERE ot.object_id = p_object_id
+        AND ot.effective_from <= month_end
+        AND (ot.effective_to IS NULL OR ot.effective_to >= month_start)
+        ORDER BY ot.effective_from DESC
+        LIMIT 1;
+    END;
+    $func$;
+    END IF;
 
     -- Wialon token encryption functions
     IF NOT EXISTS (
