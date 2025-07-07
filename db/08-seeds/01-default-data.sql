@@ -146,12 +146,13 @@ BEGIN
         (r.code IN ('invoices', 'payments', 'tariffs', 'company_profile') AND pg.name = 'Financial Management') OR
         (r.code IN ('wialon_objects', 'wialon_sync') AND pg.name = 'Wialon Management') OR 
         (r.code = 'reports' AND pg.name = 'Resource Management') OR
-        (r.code IN ('chat', 'customer_portal', 'tickets') AND pg.name = 'Client Management')
+        (r.code IN ('chat', 'customer_portal', 'tickets') AND pg.name = 'Client Management') OR
+        (r.code LIKE 'dashboards' AND pg.name = 'Dashboards')
     )
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.permissions
         WHERE code = r.code || '.' || a.code
-    );
+    ) AND r.code NOT LIKE 'dashboards.%';
     -- Manually add dashboard permissions (only read permissions needed)
     INSERT INTO auth.permissions (group_id, resource_id, name, code, is_system)
     SELECT 
