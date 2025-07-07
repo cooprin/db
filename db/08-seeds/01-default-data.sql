@@ -101,7 +101,10 @@ BEGIN
         ('Wialon Objects', 'wialon_objects', 'module'),
         ('Wialon Sync', 'wialon_sync', 'module'),
         ('Reports', 'reports', 'module'),
-
+        -- Dashboard resources
+        ('Dashboard Overdue', 'dashboards.overdue', 'module'),
+        ('Dashboard Tickets', 'dashboards.tickets', 'module'),
+        ('Dashboard Inventory', 'dashboards.inventory', 'module'),
 
         -- Customer portal resources
         ('Customer Portal', 'customer_portal', 'module'),
@@ -148,6 +151,21 @@ BEGIN
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.permissions
         WHERE code = r.code || '.' || a.code
+    );
+    -- Manually add dashboard permissions (only read permissions needed)
+    INSERT INTO auth.permissions (group_id, resource_id, name, code, is_system)
+    SELECT 
+        pg.id as group_id,
+        r.id as resource_id,
+        r.code as name,
+        r.code as code,
+        true as is_system
+    FROM core.resources r
+    LEFT JOIN auth.permission_groups pg ON pg.name = 'Client Management'
+    WHERE r.code IN ('dashboards.overdue', 'dashboards.tickets', 'dashboards.inventory')
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.permissions
+        WHERE code = r.code
     );
 
     -- Insert optimized roles
@@ -359,6 +377,56 @@ AND NOT EXISTS (
     SELECT 1 FROM auth.role_permissions
     WHERE role_id = r.id AND permission_id = p.id
 );
+-- Призначити дозволи на дашборди
+    -- ADMIN: вже має всі дозволи через загальне призначення
+
+    -- MANAGER: overdue + tickets
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    WHERE r.name = 'manager'
+    AND p.code IN ('dashboards.overdue', 'dashboards.tickets')
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- OPERATOR: тільки overdue
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    WHERE r.name = 'operator'
+    AND p.code = 'dashboards.overdue'
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- WAREHOUSE_MANAGER: inventory
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    WHERE r.name = 'warehouse_manager'
+    AND p.code = 'dashboards.inventory'
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
+
+    -- ACCOUNTANT: overdue
+    INSERT INTO auth.role_permissions (role_id, permission_id)
+    SELECT r.id, p.id
+    FROM auth.roles r
+    CROSS JOIN auth.permissions p
+    WHERE r.name = 'accountant'
+    AND p.code = 'dashboards.overdue'
+    AND NOT EXISTS (
+        SELECT 1 FROM auth.role_permissions
+        WHERE role_id = r.id AND permission_id = p.id
+    );
 
 END $$;
 
