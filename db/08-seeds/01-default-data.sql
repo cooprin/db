@@ -59,7 +59,8 @@ BEGIN
         ('Client Management', 'Client and service management'),
         ('Financial Management', 'Billing, invoices, payments, and company settings'),
         ('Wialon Management', 'Wialon objects and integration'),
-        ('Resource Management', 'System resources and configuration')
+        ('Resource Management', 'System resources and configuration'),
+        ('Dashboard Management', 'Dashboard access and widgets')
     ) AS v (name, description)
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.permission_groups
@@ -147,7 +148,7 @@ BEGIN
         (r.code IN ('wialon_objects', 'wialon_sync') AND pg.name = 'Wialon Management') OR 
         (r.code = 'reports' AND pg.name = 'Resource Management') OR
         (r.code IN ('chat', 'customer_portal', 'tickets') AND pg.name = 'Client Management') OR
-        (r.code LIKE 'dashboards' AND pg.name = 'Dashboards')
+        (r.code LIKE 'dashboards.%' AND pg.name = 'Dashboard Management')
     )
     WHERE NOT EXISTS (
         SELECT 1 FROM auth.permissions
@@ -162,7 +163,7 @@ BEGIN
         r.code as code,
         true as is_system
     FROM core.resources r
-    LEFT JOIN auth.permission_groups pg ON pg.name = 'Client Management'
+    LEFT JOIN auth.permission_groups pg ON pg.name = 'Dashboard Management'  -- ВИПРАВЛЕНО
     WHERE r.code IN ('dashboards.overdue', 'dashboards.tickets', 'dashboards.inventory')
     AND NOT EXISTS (
         SELECT 1 FROM auth.permissions
