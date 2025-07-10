@@ -5,20 +5,24 @@ SET session_replication_role = 'replica';
 DO $$
 BEGIN
     -- Створення базового шаблону для нового рахунку
-    INSERT INTO company.email_templates (
-        name, 
-        code, 
-        subject, 
-        body_html, 
-        body_text, 
-        description, 
-        variables, 
-        is_active
-    ) VALUES (
-        'Новий рахунок створено',
-        'new_invoice_created',
-        'Новий рахунок {{invoice_number}} від {{company_name}}',
-        '<!DOCTYPE html>
+    IF NOT EXISTS (
+        SELECT 1 FROM company.email_templates 
+        WHERE code = 'new_invoice_created'
+    ) THEN
+        INSERT INTO company.email_templates (
+            name, 
+            code, 
+            subject, 
+            body_html, 
+            body_text, 
+            description, 
+            variables, 
+            is_active
+        ) VALUES (
+            'Новий рахунок створено',
+            'new_invoice_created',
+            'Новий рахунок {{invoice_number}} від {{company_name}}',
+            '<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -74,7 +78,7 @@ BEGIN
     </div>
 </body>
 </html>',
-        'Шановний {{client_name}},
+            'Шановний {{client_name}},
 
 Інформуємо Вас про створення нового рахунку для оплати послуг.
 
@@ -92,26 +96,23 @@ BEGIN
 Команда {{company_name}}
 
 {{company_address}} | {{company_phone}} | {{company_email}}',
-        'Шаблон для сповіщення клієнтів про створення нового рахунку',
-        '{
-            "invoice_number": "Номер рахунку",
-            "invoice_date": "Дата рахунку", 
-            "client_name": "Ім''я клієнта",
-            "company_name": "Назва компанії",
-            "billing_period": "Період розрахунку",
-            "total_amount": "Загальна сума",
-            "due_date": "Дата оплати",
-            "portal_url": "Посилання на портал",
-            "company_address": "Адреса компанії",
-            "company_phone": "Телефон компанії", 
-            "company_email": "Email компанії"
-        }'::jsonb,
-        true
-    )
-    WHERE NOT EXISTS (
-        SELECT 1 FROM company.email_templates 
-        WHERE code = 'new_invoice_created'
-    );
+            'Шаблон для сповіщення клієнтів про створення нового рахунку',
+            '{
+                "invoice_number": "Номер рахунку",
+                "invoice_date": "Дата рахунку", 
+                "client_name": "Ім''я клієнта",
+                "company_name": "Назва компанії",
+                "billing_period": "Період розрахунку",
+                "total_amount": "Загальна сума",
+                "due_date": "Дата оплати",
+                "portal_url": "Посилання на портал",
+                "company_address": "Адреса компанії",
+                "company_phone": "Телефон компанії", 
+                "company_email": "Email компанії"
+            }'::jsonb,
+            true
+        );
+    END IF;
 
     RAISE NOTICE 'Default email templates inserted';
 END $$;
