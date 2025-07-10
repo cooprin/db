@@ -14,13 +14,11 @@ BEGIN
         description, 
         variables, 
         is_active
-    ) 
-    SELECT * FROM (VALUES
-        (
-            'Новий рахунок створено',
-            'new_invoice_created',
-            'Новий рахунок {{invoice_number}} від {{company_name}}',
-            '<!DOCTYPE html>
+    ) VALUES (
+        'Новий рахунок створено',
+        'new_invoice_created',
+        'Новий рахунок {{invoice_number}} від {{company_name}}',
+        '<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -76,7 +74,7 @@ BEGIN
     </div>
 </body>
 </html>',
-            'Шановний {{client_name}},
+        'Шановний {{client_name}},
 
 Інформуємо Вас про створення нового рахунку для оплати послуг.
 
@@ -94,26 +92,25 @@ BEGIN
 Команда {{company_name}}
 
 {{company_address}} | {{company_phone}} | {{company_email}}',
-            'Шаблон для сповіщення клієнтів про створення нового рахунку',
-            '{
-                "invoice_number": "Номер рахунку",
-                "invoice_date": "Дата рахунку", 
-                "client_name": "Ім''я клієнта",
-                "company_name": "Назва компанії",
-                "billing_period": "Період розрахунку",
-                "total_amount": "Загальна сума",
-                "due_date": "Дата оплати",
-                "portal_url": "Посилання на портал",
-                "company_address": "Адреса компанії",
-                "company_phone": "Телефон компанії", 
-                "company_email": "Email компанії"
-            }',
-            true
-        )
-    ) AS v (name, code, subject, body_html, body_text, description, variables, is_active)
+        'Шаблон для сповіщення клієнтів про створення нового рахунку',
+        '{
+            "invoice_number": "Номер рахунку",
+            "invoice_date": "Дата рахунку", 
+            "client_name": "Ім''я клієнта",
+            "company_name": "Назва компанії",
+            "billing_period": "Період розрахунку",
+            "total_amount": "Загальна сума",
+            "due_date": "Дата оплати",
+            "portal_url": "Посилання на портал",
+            "company_address": "Адреса компанії",
+            "company_phone": "Телефон компанії", 
+            "company_email": "Email компанії"
+        }'::jsonb,
+        true
+    )
     WHERE NOT EXISTS (
         SELECT 1 FROM company.email_templates 
-        WHERE code = v.code
+        WHERE code = 'new_invoice_created'
     );
 
     RAISE NOTICE 'Default email templates inserted';
