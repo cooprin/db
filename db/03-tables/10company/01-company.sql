@@ -148,24 +148,26 @@ BEGIN
         SELECT 1 FROM information_schema.tables 
         WHERE table_schema = 'company' AND table_name = 'email_templates'
     ) THEN
-        CREATE TABLE company.email_templates (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            name VARCHAR(255) NOT NULL,
-            code VARCHAR(100) NOT NULL UNIQUE,
-            subject VARCHAR(255) NOT NULL,
-            body_html TEXT NOT NULL,
-            body_text TEXT,
-            variables JSONB,
-            description TEXT,
-            is_active BOOLEAN DEFAULT true,
-            created_by UUID,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            CONSTRAINT fk_email_templates_user FOREIGN KEY (created_by) 
-                REFERENCES auth.users(id) ON DELETE SET NULL
-        );
+    CREATE TABLE company.email_templates (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name VARCHAR(255) NOT NULL,
+        code VARCHAR(100) NOT NULL UNIQUE,
+        subject VARCHAR(255) NOT NULL,
+        body_html TEXT NOT NULL,
+        body_text TEXT,
+        variables JSONB,
+        description TEXT,
+        module_type VARCHAR(50),
+        is_active BOOLEAN DEFAULT true,
+        created_by UUID,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_email_templates_user FOREIGN KEY (created_by) 
+            REFERENCES auth.users(id) ON DELETE SET NULL
+    );
         
         COMMENT ON TABLE company.email_templates IS 'Email templates for automated messages';
+        COMMENT ON COLUMN company.email_templates.module_type IS 'Тип модуля для якого призначений шаблон (invoice, payment, service, client, system)';
         RAISE NOTICE 'Email templates table created';
     END IF;
 
