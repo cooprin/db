@@ -41,6 +41,9 @@ BEGIN
 <body>
     <div class="container">
         <div class="header">
+            {{#if company_logo_url}}
+            <img src="{{company_logo_url}}" alt="{{company_name}}" style="max-height: 60px; margin-bottom: 10px;">
+            {{/if}}
             <h1>{{company_name}}</h1>
             <h2>Новий рахунок створено</h2>
         </div>
@@ -74,7 +77,7 @@ BEGIN
         
         <div class="footer">
             <p>Це автоматично згенерований лист. Будь ласка, не відповідайте на нього.</p>
-            <p>{{company_address}} | {{company_phone}} | {{company_email}}</p>
+            <p>{{company_website}} | {{company_address}} | {{company_phone}} | {{company_email}}</p>
         </div>
     </div>
 </body>
@@ -96,7 +99,7 @@ BEGIN
 З повагою,
 Команда {{company_name}}
 
-{{company_address}} | {{company_phone}} | {{company_email}}',
+{{company_website}} | {{company_address}} | {{company_phone}} | {{company_email}}',
             'Шаблон для сповіщення клієнтів про створення нового рахунку',
             '{
                 "invoice_number": "Номер рахунку",
@@ -109,7 +112,9 @@ BEGIN
                 "portal_url": "Посилання на портал",
                 "company_address": "Адреса компанії",
                 "company_phone": "Телефон компанії", 
-                "company_email": "Email компанії"
+                "company_email": "Email компанії",
+                "company_website": "Веб-сайт компанії",
+                "company_logo_url": "URL логотипу компанії"
             }'::jsonb,
             'invoice',
             true
@@ -153,6 +158,9 @@ BEGIN
 <body>
     <div class="container">
         <div class="header">
+            {{#if company_logo_url}}
+            <img src="{{company_logo_url}}" alt="{{company_name}}" style="max-height: 60px; margin-bottom: 10px;">
+            {{/if}}
             <h1>{{company_name}}</h1>
             <h2>Нагадування про оплату</h2>
         </div>
@@ -173,7 +181,7 @@ BEGIN
             </div>
             
             <p style="text-align: center; margin: 30px 0;">
-                <a href="{{portal_url}}" class="button">Оплатити рахунок</a>
+                <a href="{{portal_url}}" class="button">Перейти до особистого кабінету</a>
             </p>
             
             <p>Якщо у Вас виникли питання, будь ласка, зв''яжіться з нами.</p>
@@ -183,7 +191,7 @@ BEGIN
         </div>
         
         <div class="footer">
-            <p>{{company_address}} | {{company_phone}} | {{company_email}}</p>
+            <p>{{company_website}} | {{company_address}} | {{company_phone}} | {{company_email}}</p>
         </div>
     </div>
 </body>
@@ -205,7 +213,7 @@ BEGIN
 З повагою,
 Команда {{company_name}}
 
-{{company_address}} | {{company_phone}} | {{company_email}}',
+{{company_website}} | {{company_address}} | {{company_phone}} | {{company_email}}',
             'Шаблон для нагадування клієнтам про неоплачені рахунки',
             '{
                 "invoice_number": "Номер рахунку",
@@ -217,7 +225,9 @@ BEGIN
                 "portal_url": "Посилання на портал",
                 "company_address": "Адреса компанії",
                 "company_phone": "Телефон компанії", 
-                "company_email": "Email компанії"
+                "company_email": "Email компанії",
+                "company_website": "Веб-сайт компанії",
+                "company_logo_url": "URL логотипу компанії"
             }'::jsonb,
             'invoice',
             true
@@ -254,12 +264,16 @@ BEGIN
         .header { background-color: #28a745; padding: 20px; text-align: center; color: white; }
         .content { padding: 20px; background-color: white; }
         .footer { background-color: #f8f9fa; padding: 10px; text-align: center; font-size: 12px; }
+        .button { display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; }
         .payment-details { background-color: #d4edda; padding: 15px; margin: 20px 0; border-radius: 5px; border-left: 4px solid #28a745; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
+            {{#if company_logo_url}}
+            <img src="{{company_logo_url}}" alt="{{company_name}}" style="max-height: 60px; margin-bottom: 10px;">
+            {{/if}}
             <h1>{{company_name}}</h1>
             <h2>✅ Платіж отримано</h2>
         </div>
@@ -277,6 +291,10 @@ BEGIN
                 </ul>
             </div>
             
+            <p style="text-align: center; margin: 30px 0;">
+                <a href="{{portal_url}}" class="button">Перейти до особистого кабінету</a>
+            </p>
+            
             <p>Дякуємо за вчасну оплату послуг!</p>
             
             <p>З повагою,<br>
@@ -284,7 +302,7 @@ BEGIN
         </div>
         
         <div class="footer">
-            <p>{{company_address}} | {{company_phone}} | {{company_email}}</p>
+            <p>{{company_website}} | {{company_address}} | {{company_phone}} | {{company_email}}</p>
         </div>
     </div>
 </body>
@@ -297,21 +315,26 @@ BEGIN
 - Сума платежу: {{payment_amount}} грн
 - Дата платежу: {{payment_date}}
 
+Перейти до особистого кабінету: {{portal_url}}
+
 Дякуємо за вчасну оплату послуг!
 
 З повагою,
 Команда {{company_name}}
 
-{{company_address}} | {{company_phone}} | {{company_email}}',
+{{company_website}} | {{company_address}} | {{company_phone}} | {{company_email}}',
             'Шаблон для підтвердження отримання платежу від клієнта',
             '{
                 "client_name": "Ім''я клієнта",
                 "company_name": "Назва компанії",
                 "payment_amount": "Сума платежу",
                 "payment_date": "Дата платежу",
+                "portal_url": "Посилання на портал",
                 "company_address": "Адреса компанії",
                 "company_phone": "Телефон компанії", 
-                "company_email": "Email компанії"
+                "company_email": "Email компанії",
+                "company_website": "Веб-сайт компанії",
+                "company_logo_url": "URL логотипу компанії"
             }'::jsonb,
             'payment',
             true
@@ -354,6 +377,9 @@ BEGIN
 <body>
     <div class="container">
         <div class="header">
+            {{#if company_logo_url}}
+            <img src="{{company_logo_url}}" alt="{{company_name}}" style="max-height: 60px; margin-bottom: 10px;">
+            {{/if}}
             <h1>{{company_name}}</h1>
             <h2>🎉 Ласкаво просимо!</h2>
         </div>
@@ -376,7 +402,7 @@ BEGIN
         </div>
         
         <div class="footer">
-            <p>{{company_address}} | {{company_phone}} | {{company_email}}</p>
+            <p>{{company_website}} | {{company_address}} | {{company_phone}} | {{company_email}}</p>
         </div>
     </div>
 </body>
@@ -394,7 +420,7 @@ BEGIN
 З повагою,
 Команда {{company_name}}
 
-{{company_address}} | {{company_phone}} | {{company_email}}',
+{{company_website}} | {{company_address}} | {{company_phone}} | {{company_email}}',
             'Шаблон для привітання нових клієнтів',
             '{
                 "client_name": "Ім''я клієнта",
@@ -402,7 +428,9 @@ BEGIN
                 "portal_url": "Посилання на портал",
                 "company_address": "Адреса компанії",
                 "company_phone": "Телефон компанії", 
-                "company_email": "Email компанії"
+                "company_email": "Email компанії",
+                "company_website": "Веб-сайт компанії",
+                "company_logo_url": "URL логотипу компанії"
             }'::jsonb,
             'client',
             true
