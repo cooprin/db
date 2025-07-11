@@ -41,9 +41,9 @@ BEGIN
 <body>
     <div class="container">
         <div class="header">
-            {{#if company_logo_url}}
-            <img src="{{company_logo_url}}" alt="{{company_name}}" style="max-height: 60px; margin-bottom: 10px;">
-            {{/if}}
+            <div style="text-align: center; margin-bottom: 10px;">
+                <img src="{{company_logo_url}}" alt="{{company_name}}" style="max-height: 60px; display: block; margin: 0 auto;">
+            </div>
             <h1>{{company_name}}</h1>
             <h2>Новий рахунок створено</h2>
         </div>
@@ -158,9 +158,9 @@ BEGIN
 <body>
     <div class="container">
         <div class="header">
-            {{#if company_logo_url}}
-            <img src="{{company_logo_url}}" alt="{{company_name}}" style="max-height: 60px; margin-bottom: 10px;">
-            {{/if}}
+            <div style="text-align: center; margin-bottom: 10px;">
+                <img src="{{company_logo_url}}" alt="{{company_name}}" style="max-height: 60px; display: block; margin: 0 auto;">
+            </div>
             <h1>{{company_name}}</h1>
             <h2>Нагадування про оплату</h2>
         </div>
@@ -271,9 +271,9 @@ BEGIN
 <body>
     <div class="container">
         <div class="header">
-            {{#if company_logo_url}}
-            <img src="{{company_logo_url}}" alt="{{company_name}}" style="max-height: 60px; margin-bottom: 10px;">
-            {{/if}}
+            <div style="text-align: center; margin-bottom: 10px;">
+                <img src="{{company_logo_url}}" alt="{{company_name}}" style="max-height: 60px; display: block; margin: 0 auto;">
+            </div>
             <h1>{{company_name}}</h1>
             <h2>✅ Платіж отримано</h2>
         </div>
@@ -377,9 +377,9 @@ BEGIN
 <body>
     <div class="container">
         <div class="header">
-            {{#if company_logo_url}}
-            <img src="{{company_logo_url}}" alt="{{company_name}}" style="max-height: 60px; margin-bottom: 10px;">
-            {{/if}}
+            <div style="text-align: center; margin-bottom: 10px;">
+                <img src="{{company_logo_url}}" alt="{{company_name}}" style="max-height: 60px; display: block; margin: 0 auto;">
+            </div>
             <h1>{{company_name}}</h1>
             <h2>🎉 Ласкаво просимо!</h2>
         </div>
